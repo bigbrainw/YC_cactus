@@ -10,9 +10,10 @@ private val NeuroLightScheme = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = NeuroSkyBlue,
     onPrimaryContainer = NeuroNavy,
-    secondary = NeuroSkyBlue,
-    onSecondary = NeuroNavy,
-    secondaryContainer = NeuroCream,
+    secondary = NeuroNavy,
+    onSecondary = Color.White,
+    // selected-tab indicator pill
+    secondaryContainer = NeuroSkyBlue,
     onSecondaryContainer = NeuroNavy,
     tertiary = NeuroCream,
     onTertiary = NeuroNavy,
@@ -20,8 +21,11 @@ private val NeuroLightScheme = lightColorScheme(
     onBackground = NeuroTextPrimary,
     surface = NeuroSurfaceWhite,
     onSurface = NeuroTextPrimary,
+    // surfaceContainer drives NavigationBar background in Material3
+    surfaceContainer = NeuroNavBar,
     surfaceVariant = NeuroSkyBlue.copy(alpha = 0.35f),
-    onSurfaceVariant = NeuroTextSecondary,
+    // onSurfaceVariant = unselected icon + label color
+    onSurfaceVariant = NeuroSkyBlue,
     outline = NeuroTextSecondary.copy(alpha = 0.35f),
     outlineVariant = NeuroSkyBlue.copy(alpha = 0.5f),
 )

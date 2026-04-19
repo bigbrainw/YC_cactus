@@ -25,18 +25,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.neurofocus.neurfocus_dnd.brain.domain.BatteryPercent
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
-import dev.neurofocus.neurfocus_dnd.brain.domain.ElectrodeSite
+import dev.neurofocus.neurfocus_dnd.brain.domain.EegDebugStats
 import dev.neurofocus.neurfocus_dnd.brain.domain.FocusScore
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
 
 /**
  * Braun ET66-inspired stats row.
- *
- * Two columns (Battery, Focus) — monospaced numerals, all-caps tracking-out
- * label, thin animated horizontal bar. No chrome, no shadows, no drop-fills.
+ * Battery: firmware does not report it — shows "--" instead of a fake number.
  */
 @Composable
 fun BrainMeter(
@@ -50,7 +47,13 @@ fun BrainMeter(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Stat(label = "Brain Battery", percent = state.battery.value)
+        // Battery: show "--" because firmware does not transmit this
+        val batteryDisplay = state.battery?.value ?: -1
+        if (batteryDisplay >= 0) {
+            Stat(label = "BATTERY", percent = batteryDisplay)
+        } else {
+            StatUnavailable(label = "BATTERY", reason = "N/A")
+        }
         VerticalDivider(
             modifier = Modifier.height(48.dp),
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
@@ -99,6 +102,26 @@ private fun Stat(label: String, percent: Int) {
     }
 }
 
+@Composable
+private fun StatUnavailable(label: String, reason: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = reason,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Light,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            letterSpacing = 2.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+        )
+    }
+}
+
 private val BAR_WIDTH = 72.dp
 private val BAR_HEIGHT = 3.dp
 
@@ -108,11 +131,17 @@ private fun BrainMeterPreview() {
     NeurfocusdndTheme {
         BrainMeter(
             state = BrainState.Live(
-                battery = BatteryPercent(72),
                 focus = FocusScore(0.65f),
                 bandPowers = mapOf(EegBand.Alpha to 0.5f),
-                rawEnvelope = 0.5f,
-                electrodeSite = ElectrodeSite.Fp1,
+                rawEnvelopeUv = 50f,
+                debugStats = EegDebugStats(
+                    totalSamples = 1000, effectiveRateSps = 253f,
+                    bleNotifyCount = 1000, seqGaps = 0, ignoredPayloads = 0,
+                    lastRawCount = 127000, lastMicrovoltsCorrected = 48f,
+                    windowRmsUv = 52f, windowSamples = 1265,
+                    transportMode = "ascii", lastNotifyMs = System.currentTimeMillis(),
+                ),
+                battery = null,  // firmware does not report battery
             ),
         )
     }

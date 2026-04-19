@@ -21,14 +21,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,13 +48,18 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.neurofocus.neurfocus_dnd.brain.data.BleDeviceCandidate
 import dev.neurofocus.neurfocus_dnd.brain.data.ble.BlePermissions
+import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.ui.BrainScreen
+import dev.neurofocus.neurfocus_dnd.brain.ui.DebugScreen
 import dev.neurofocus.neurfocus_dnd.brain.ui.SettingsScreen
 import dev.neurofocus.neurfocus_dnd.brain.ui.rememberBrainViewModel
 import dev.neurofocus.neurfocus_dnd.onboarding.UserPrefs
 import dev.neurofocus.neurfocus_dnd.onboarding.UserProfile
 import dev.neurofocus.neurfocus_dnd.ui.shell.NeuroGradientBackground
 import dev.neurofocus.neurfocus_dnd.ui.shell.NeuroTopBar
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavBar
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavy
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSkyBlue
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroTokens
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
 
@@ -75,12 +88,16 @@ private fun AppRoot(prefs: UserPrefs) {
     )
 }
 
+private enum class NavTab { Home, Debug }
+
 @Composable
 private fun MainShell(
     profile: UserProfile,
     onResetProfile: () -> Unit,
 ) {
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(NavTab.Home.ordinal) }
+    val currentTab = NavTab.entries[selectedTab]
 
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext as Application }
@@ -127,37 +144,80 @@ private fun MainShell(
                 .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            NeuroTopBar(
-                onBleDevicesClick = {
-                    if (needsBle) {
-                        if (!BlePermissions.hasAll(app)) {
-                            permissionLauncher.launch(BlePermissions.requiredPermissions())
-                        } else {
-                            brainViewModel.openBleDevicePicker()
+            // Only show top bar on Home tab (not Debug — debug uses full screen real estate)
+            if (currentTab == NavTab.Home) {
+                NeuroTopBar(
+                    onBleDevicesClick = {
+                        if (needsBle) {
+                            if (!BlePermissions.hasAll(app)) {
+                                permissionLauncher.launch(BlePermissions.requiredPermissions())
+                            } else {
+                                brainViewModel.openBleDevicePicker()
+                            }
                         }
-                    }
-                },
-                onNotificationsClick = { },
-                onProfileClick = { settingsOpen = true },
-                isConnected = brainState is dev.neurofocus.neurfocus_dnd.brain.domain.BrainState.Live,
-            )
+                    },
+                    onNotificationsClick = { },
+                    onProfileClick = { settingsOpen = true },
+                    isConnected = brainState is BrainState.Live,
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = NeuroTokens.shellContentHorizontal),
+                    .padding(horizontal = if (currentTab == NavTab.Debug) 0.dp else NeuroTokens.shellContentHorizontal),
             ) {
-                if (settingsOpen) {
-                    SettingsScreen(
-                        profile = profile,
-                        onResetProfile = onResetProfile,
-                        onNavigateBack = { settingsOpen = false },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    BrainScreen(
-                        profile = profile,
-                        viewModel = brainViewModel,
-                        modifier = Modifier.fillMaxSize(),
+                when {
+                    settingsOpen && currentTab == NavTab.Home -> {
+                        SettingsScreen(
+                            profile = profile,
+                            onResetProfile = onResetProfile,
+                            onNavigateBack = { settingsOpen = false },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    currentTab == NavTab.Home -> {
+                        BrainScreen(
+                            profile = profile,
+                            viewModel = brainViewModel,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    currentTab == NavTab.Debug -> {
+                        DebugScreen(
+                            viewModel = brainViewModel,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            }
+
+            // Bottom Navigation Bar
+            NavigationBar(
+                containerColor = NeuroNavBar,
+                contentColor = NeuroSkyBlue,
+            ) {
+                NavTab.entries.forEach { tab ->
+                    NavigationBarItem(
+                        selected = currentTab == tab,
+                        onClick = { selectedTab = tab.ordinal },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = NeuroNavy,
+                            selectedTextColor = NeuroSkyBlue,
+                            indicatorColor = NeuroSkyBlue,
+                            unselectedIconColor = NeuroSkyBlue.copy(alpha = 0.55f),
+                            unselectedTextColor = NeuroSkyBlue.copy(alpha = 0.55f),
+                        ),
+                        icon = {
+                            Icon(
+                                imageVector = when (tab) {
+                                    NavTab.Home  -> Icons.Default.Home
+                                    NavTab.Debug -> Icons.Default.BugReport
+                                },
+                                contentDescription = tab.name,
+                            )
+                        },
+                        label = { Text(tab.name) },
                     )
                 }
             }
@@ -242,4 +302,3 @@ private fun BleDevicePickerDialog(
         },
     )
 }
-

@@ -11,16 +11,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.neurofocus.neurfocus_dnd.brain.data.BleDeviceCandidate
 import dev.neurofocus.neurfocus_dnd.brain.data.BrainDataRepository
 import dev.neurofocus.neurfocus_dnd.brain.data.BrainRepositoryFactory
+import dev.neurofocus.neurfocus_dnd.brain.data.ble.BleEegRepository
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
+import dev.neurofocus.neurfocus_dnd.brain.domain.DisconnectEvent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * Owns the [BrainDataRepository] for the current Activity scope and exposes
- * its state to the UI.
- */
 class BrainViewModel(
     private val repository: BrainDataRepository,
 ) : ViewModel() {
@@ -36,11 +34,24 @@ class BrainViewModel(
     private val _blePickerDevices = MutableStateFlow<List<BleDeviceCandidate>>(emptyList())
     val blePickerDevices: StateFlow<List<BleDeviceCandidate>> = _blePickerDevices.asStateFlow()
 
+    /** Disconnect event log — populated from BleEegRepository if available, otherwise empty. */
+    private val _disconnectLog = MutableStateFlow<List<DisconnectEvent>>(emptyList())
+    val disconnectLog: StateFlow<List<DisconnectEvent>> = _disconnectLog.asStateFlow()
+
     init {
         viewModelScope.launch { repository.connect() }
+
+        // Collect disconnect events from the BLE repository if available
+        val bleRepo = repository as? BleEegRepository
+        if (bleRepo != null) {
+            viewModelScope.launch {
+                bleRepo.disconnectEvents.collect { event ->
+                    _disconnectLog.value = (_disconnectLog.value + event).takeLast(100)
+                }
+            }
+        }
     }
 
-    /** Call after runtime Bluetooth permissions are granted. */
     fun retryConnect() {
         viewModelScope.launch { repository.connect() }
     }

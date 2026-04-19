@@ -10,19 +10,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import dev.neurofocus.neurfocus_dnd.brain.domain.BatteryPercent
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
-import dev.neurofocus.neurfocus_dnd.brain.domain.ElectrodeSite
+import dev.neurofocus.neurfocus_dnd.brain.domain.EegDebugStats
 import dev.neurofocus.neurfocus_dnd.brain.domain.FocusScore
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
 
 /**
  * Single sentence of "do this next" advice.
  *
- * v1: deterministic German-minimalist copy keyed to focus + battery.
- * v2 (later): replace [deriveAdvice] with a Gemma-backed generator. The
- * composable signature stays the same — UI never knows the source.
+ * v1: deterministic physiological copy keyed to focus heuristic.
+ * Battery: firmware doesn't report it, so advice never references it.
  */
 @Composable
 fun AdviceLine(
@@ -45,16 +43,15 @@ fun AdviceLine(
 private fun deriveAdvice(state: BrainState): String? = when (state) {
     is BrainState.Live -> {
         val focus = state.focus.value
-        val battery = state.battery.value
         when {
-            battery < 20 -> "Reserves are low. Recover, do not push."
-            focus >= 0.70f && battery > 50 -> "Peak focus. Begin your most demanding task now."
+            focus >= 0.70f -> "Peak focus. Begin your most demanding task now."
             focus >= 0.50f -> "Steady. Ship something difficult before it slips."
             focus >= 0.30f -> "Focus dipping. A short pause prevents a long one."
-            else -> "Three minutes of stillness. Then return."
+            else           -> "Three minutes of stillness. Then return."
         }
     }
     BrainState.Idle, BrainState.Searching, BrainState.Connecting -> null
+    is BrainState.Reconnecting -> "Reconnecting to headband…"
     is BrainState.Error -> null
 }
 
@@ -64,11 +61,16 @@ private fun AdviceLinePreview() {
     NeurfocusdndTheme {
         AdviceLine(
             state = BrainState.Live(
-                battery = BatteryPercent(72),
                 focus = FocusScore(0.75f),
-                bandPowers = mapOf(EegBand.Beta to 0.6f),
-                rawEnvelope = 0.6f,
-                electrodeSite = ElectrodeSite.Fp1,
+                bandPowers = mapOf(EegBand.LowBeta to 0.6f),
+                rawEnvelopeUv = 60f,
+                debugStats = EegDebugStats(
+                    totalSamples = 1000, effectiveRateSps = 253f,
+                    bleNotifyCount = 1000, seqGaps = 0, ignoredPayloads = 0,
+                    lastRawCount = 127000, lastMicrovoltsCorrected = 48f,
+                    windowRmsUv = 52f, windowSamples = 1265,
+                    transportMode = "ascii", lastNotifyMs = System.currentTimeMillis(),
+                ),
             ),
         )
     }

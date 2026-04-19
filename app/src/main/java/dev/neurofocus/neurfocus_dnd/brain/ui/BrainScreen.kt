@@ -37,10 +37,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.neurofocus.neurfocus_dnd.brain.domain.BatteryPercent
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
-import dev.neurofocus.neurfocus_dnd.brain.domain.ElectrodeSite
 import dev.neurofocus.neurfocus_dnd.brain.domain.FocusScore
 import dev.neurofocus.neurfocus_dnd.onboarding.UserProfile
 import dev.neurofocus.neurfocus_dnd.ui.components.GlassCard
@@ -71,10 +69,7 @@ private fun BrainScreenContent(
     var mode by rememberSaveable { mutableStateOf(MappingMode.Cognitive) }
     var advancedResearch by rememberSaveable { mutableStateOf(false) }
 
-    val palette = when (mode) {
-        MappingMode.Cognitive -> BrainPalette.cool()
-        MappingMode.Emotional -> BrainPalette.warm()
-    }
+    val palette = BrainPalette.pro()
 
     val scroll = rememberScrollState()
     Box(
@@ -131,9 +126,6 @@ private fun BrainScreenContent(
                         modifier = Modifier.fillMaxSize(),
                         palette = palette,
                     )
-                    if (advancedResearch) {
-                        BrainQuadrantOverlay(modifier = Modifier.fillMaxSize())
-                    }
                     TooltipBubble(
                         text = when (mode) {
                             MappingMode.Cognitive -> "Analytical thinking"
@@ -269,7 +261,8 @@ private fun BrainState.statusLine(): String = when (this) {
     BrainState.Idle -> "READY TO CONNECT"
     BrainState.Searching -> "SCANNING FOR HEADBAND..."
     BrainState.Connecting -> "ESTABLISHING LINK..."
-    is BrainState.Live -> "CONNECTED  •  STREAMING 600Hz"
+    is BrainState.Live -> "CONNECTED  •  ${debugStats.effectiveRateSps.toInt()}SPS  ${debugStats.transportMode.uppercase()}"
+    is BrainState.Reconnecting -> "RECONNECTING (attempt $attempt)..."
     is BrainState.Error -> "DISCONNECTED  •  $message"
 }
 
@@ -279,17 +272,23 @@ private fun BrainScreenLivePreview() {
     NeurfocusdndTheme {
         BrainScreenContent(
             state = BrainState.Live(
-                battery = BatteryPercent(72),
-                focus = FocusScore(0.65f),
+                focus = dev.neurofocus.neurfocus_dnd.brain.domain.FocusScore(0.65f),
                 bandPowers = mapOf(
-                    EegBand.Delta to 0.30f,
-                    EegBand.Theta to 0.25f,
-                    EegBand.Alpha to 0.55f,
-                    EegBand.Beta to 0.55f,
-                    EegBand.Gamma to 0.35f,
+                    EegBand.Delta    to 0.30f,
+                    EegBand.Theta    to 0.25f,
+                    EegBand.Alpha    to 0.55f,
+                    EegBand.LowBeta  to 0.40f,
+                    EegBand.HighBeta to 0.15f,
+                    EegBand.Gamma    to 0.35f,
                 ),
-                rawEnvelope = 0.6f,
-                electrodeSite = ElectrodeSite.Fp1,
+                rawEnvelopeUv = 60f,
+                debugStats = dev.neurofocus.neurfocus_dnd.brain.domain.EegDebugStats(
+                    totalSamples = 5000, effectiveRateSps = 253f,
+                    bleNotifyCount = 5000, seqGaps = 0, ignoredPayloads = 0,
+                    lastRawCount = 127000, lastMicrovoltsCorrected = 48f,
+                    windowRmsUv = 52f, windowSamples = 1265,
+                    transportMode = "ascii", lastNotifyMs = System.currentTimeMillis(),
+                ),
             ),
             profile = UserProfile("Ada", "Lovelace"),
         )
