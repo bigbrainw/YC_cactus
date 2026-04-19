@@ -1,0 +1,51 @@
+---
+description: Coroutines, dispatchers, and reactive state rules
+globs: **/*.kt
+alwaysApply: false
+---
+
+# Dispatchers — Inject, Don't Hardcode
+- **Never** reference `Dispatchers.IO`/`Default`/`Main` directly inside a class body. Inject via constructor for testability.
+
+```kotlin
+class UserRepository(
+    private val api: UserApi,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) {
+    suspend fun load(id: String) = withContext(ioDispatcher) { api.get(id) }
+}
+```
+
+# Scope Discipline
+- **Never** use `GlobalScope`. Tie work to a lifecycle-aware scope:
+  - `viewModelScope` in `ViewModel`s
+  - `lifecycleScope` in `Activity`/`Fragment`
+  - `rememberCoroutineScope()` in composables
+  - structured `coroutineScope { }` / `supervisorScope { }` for parallel work
+- Cancel respect: never catch `CancellationException` and continue. If you must catch broadly, rethrow it explicitly.
+
+```kotlin
+try {
+    doWork()
+} catch (ce: CancellationException) {
+    throw ce
+} catch (e: Throwable) {
+    Log.e(TAG, "doWork failed", e)
+}
+```
+
+# StateFlow / SharedFlow over LiveData
+- Use `StateFlow` for UI state, `SharedFlow` for one-shot events.
+- Mutate with `update { }` for atomic, thread-safe transitions — never `mutableState.value = ...` for derived updates.
+- Collect on the UI side with `collectAsStateWithLifecycle()`.
+
+```kotlin
+private val _state = MutableStateFlow(UiState.Loading)
+val state: StateFlow<UiState> = _state.asStateFlow()
+
+fun onRefresh() = viewModelScope.launch {
+    _state.update { UiState.Loading }
+    val result = repo.load()
+    _state.update { result.toUiState() }
+}
+```

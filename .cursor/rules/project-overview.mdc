@@ -1,0 +1,39 @@
+---
+description: Core context for the neurfocus-dnd Android app
+alwaysApply: true
+---
+
+# Project: neurfocus-dnd
+
+Android app built with **Kotlin + Jetpack Compose** (Material3, adaptive navigation suite). Single-module project (`:app`).
+
+## Stack
+- **Language**: Kotlin `2.2.10`, Java 11 source/target
+- **UI**: Jetpack Compose (BOM `2025.12.00`), Material3, `material3-adaptive-navigation-suite`
+- **Build**: Gradle Kotlin DSL + Version Catalog (`gradle/libs.versions.toml`)
+- **AGP**: `9.1.1`
+- **SDK**: `minSdk 24`, `targetSdk 36`, `compileSdk 36` (minorApiLevel 1)
+- **Package**: `dev.neurofocus.neurfocus_dnd`
+- **Entry**: `app/src/main/java/dev/neurofocus/neurfocus_dnd/MainActivity.kt`
+- **Theme**: `NeurfocusdndTheme` in `ui/theme/` (supports dynamic color on Android 12+)
+
+## Layout
+```
+app/src/main/
+  java/dev/neurofocus/neurfocus_dnd/
+    MainActivity.kt          # entry, NavigationSuiteScaffold
+    ui/theme/                # Color.kt, Theme.kt, Type.kt
+  res/                       # drawables, strings, mipmaps
+  AndroidManifest.xml
+```
+
+## Conventions
+- Place new screens/features under `dev.neurofocus.neurfocus_dnd.<feature>` packages.
+- Reuse `NeurfocusdndTheme` for any new `@Preview` or `setContent` block.
+- Use `enableEdgeToEdge()` and respect `innerPadding` from `Scaffold`.
+- Prefer `rememberSaveable` over `remember` for state that should survive config changes.
+
+## Safety (per user rules)
+- Do NOT run the app or emulator. Only run **lint/compile checks** when verifying changes (e.g. `./gradlew lint` or `./gradlew assembleDebug` if needed).
+- Never modify `local.properties` or commit secrets.
+- Never force-push, reset --hard, or rewrite git history.

@@ -1,0 +1,53 @@
+---
+description: Kotlin null-safety, exception handling, and compiler discipline
+globs: **/*.kt,**/*.kts
+alwaysApply: false
+---
+
+# Null Safety
+- **Never** use `!!`. Use `?.`, `?:`, `requireNotNull(x) { "msg" }`, or `checkNotNull`.
+- Prefer non-nullable types in signatures; push nulls to the boundary.
+
+```kotlin
+// BAD
+val name = user!!.profile!!.displayName
+
+// GOOD
+val name = user?.profile?.displayName ?: "Anonymous"
+```
+
+# Exception Handling
+- **Never** swallow exceptions. Empty `catch {}` and `runCatching{...}.getOrNull()` to mask failures are forbidden unless explicitly requested.
+- Catch the **narrowest** type you can handle; rethrow or wrap the rest.
+- Log with context, then react.
+
+```kotlin
+// BAD
+try { repo.save(item) } catch (_: Exception) {}
+
+// GOOD
+try {
+    repo.save(item)
+} catch (e: IOException) {
+    Log.e(TAG, "save failed for id=${item.id}", e)
+    throw PersistenceError("save failed", e)
+}
+```
+
+# Exhaustive `when`
+- For sealed classes/interfaces and enums, **omit `else`** so the compiler enforces updates when new subtypes appear. Use `when` as an expression to force exhaustiveness.
+
+```kotlin
+sealed interface UiState { object Loading : UiState; data class Ready(val data: String) : UiState; data class Error(val msg: String) : UiState }
+
+val text: String = when (state) {
+    UiState.Loading -> "..."
+    is UiState.Ready -> state.data
+    is UiState.Error -> state.msg
+}
+```
+
+# Compiler Compliance
+- Treat all warnings as errors. Assume `allWarningsAsErrors` and `-Xjsr305=strict`.
+- Resolve every deprecation; never `@Suppress` without a justification comment.
+- For Java interop, annotate platform types explicitly (`@JvmField`, `@JvmStatic`, `@Nullable`/`@NonNull` on Java sources you touch).

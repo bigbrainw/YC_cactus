@@ -1,0 +1,41 @@
+---
+description: Jetpack Compose + Kotlin conventions for this app
+globs: **/*.kt
+alwaysApply: false
+---
+
+# Compose & Kotlin Conventions
+
+## Composables
+- PascalCase for `@Composable` functions; one composable per logical unit.
+- Always accept `modifier: Modifier = Modifier` as the first optional parameter and forward it to the root layout.
+- Hoist state: composables should be stateless when possible; pass values + lambdas down.
+- Use `rememberSaveable` for state that must survive recreation; `remember` for ephemeral state.
+- Provide a `@Preview` (or `@PreviewScreenSizes`) wrapped in `NeurfocusdndTheme` for new UI.
+
+```kotlin
+@Composable
+fun MyScreen(
+    modifier: Modifier = Modifier,
+    onAction: () -> Unit = {},
+) {
+    Scaffold(modifier = modifier.fillMaxSize()) { innerPadding ->
+        Column(Modifier.padding(innerPadding)) { /* ... */ }
+    }
+}
+```
+
+## Material3 + Theming
+- Pull colors from `MaterialTheme.colorScheme`, typography from `MaterialTheme.typography`. Do not hardcode hex.
+- Add new palette entries to `ui/theme/Color.kt`; wire them in `Theme.kt`.
+- Respect dynamic color on Android 12+; only override when product design requires it.
+
+## Navigation
+- Use `NavigationSuiteScaffold` (already in `MainActivity`) for top-level destinations.
+- Add new destinations to the `AppDestinations` enum with a `label` and drawable `icon` resource.
+
+## Kotlin style
+- `val` over `var`; immutable data classes for state.
+- Use trailing lambdas, scope functions (`let`, `apply`, `also`) where they improve clarity—not for cleverness.
+- Prefer `when` expressions over `if/else` chains.
+- No unused imports; keep `androidx.compose.*` imports explicit.

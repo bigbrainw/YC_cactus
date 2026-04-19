@@ -1,0 +1,45 @@
+---
+description: Gradle Kotlin DSL + Version Catalog conventions
+globs: **/*.gradle.kts,**/libs.versions.toml,**/settings.gradle.kts
+alwaysApply: false
+---
+
+# Gradle & Version Catalog
+
+All dependency and plugin versions live in `gradle/libs.versions.toml`. **Never** hardcode versions in `build.gradle.kts`.
+
+## Adding a dependency
+1. Add the version to `[versions]` (only if it's a new line).
+2. Declare the library in `[libraries]` using `version.ref`.
+3. Reference it in `app/build.gradle.kts` via `libs.<alias>`.
+
+```toml
+# gradle/libs.versions.toml
+[versions]
+coil = "2.7.0"
+
+[libraries]
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+```
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation(libs.coil.compose)
+}
+```
+
+## Plugins
+- Declare plugins in `[plugins]` of the catalog and apply via `alias(libs.plugins.<name>)`.
+- Top-level `build.gradle.kts` uses `apply false`; modules apply directly.
+
+## Compose BOM
+- Compose artifacts must come through `platform(libs.androidx.compose.bom)`—do not pin individual Compose versions.
+
+## SDK / Java
+- Keep `minSdk = 24`, `targetSdk = 36`, `compileSdk { release(36) }`.
+- Java/Kotlin source compatibility stays at **Java 11**. Do not bump without explicit request.
+
+## Don't
+- Don't introduce KAPT if KSP works (faster builds).
+- Don't add `mavenLocal()` or extra repositories without need; existing config uses `google()` + `mavenCentral()`.

@@ -1,0 +1,40 @@
+---
+description: Immutability, domain modeling, and separation of concerns
+globs: **/*.kt
+alwaysApply: false
+---
+
+# Immutability by Default
+- `val` everywhere; `var` only inside a tight, isolated local scope.
+- Public APIs return read-only `List`/`Set`/`Map` — never `MutableList` etc.
+- State holders expose immutable views (`StateFlow<T>`, not `MutableStateFlow<T>`).
+
+# Domain Modeling
+- Use **data classes** for state; their `equals`/`hashCode`/`copy` are required for diffing and `StateFlow` distinctness.
+- Replace primitive obsession with **inline/value classes** for IDs and units.
+
+```kotlin
+@JvmInline value class UserId(val raw: String)
+@JvmInline value class FocusMinutes(val value: Int)
+
+data class FocusSession(val id: UserId, val duration: FocusMinutes, val startedAt: Instant)
+```
+
+- Model finite outcomes with **sealed interfaces**, not booleans + nullables.
+
+```kotlin
+sealed interface LoadResult<out T> {
+    data class Success<T>(val value: T) : LoadResult<T>
+    data class Failure(val error: Throwable) : LoadResult<Nothing>
+}
+```
+
+# Separation of Concerns
+- **Composable**: render state, emit events. No I/O, no business logic.
+- **ViewModel**: orchestrate use cases, expose `StateFlow`. No Android UI imports (`androidx.compose.*`, `View`, `Context`).
+- **Repository / UseCase**: data access and domain rules. No `viewModelScope`, no UI types.
+- One-way data flow: `UI → events → ViewModel → state → UI`.
+
+# Side-Effect Boundaries
+- Side effects (logging, navigation, toasts) live in `LaunchedEffect` / collectors, never inside `remember` blocks or composition itself.
+- `remember { }` must be pure; no I/O, no mutation of external state.
