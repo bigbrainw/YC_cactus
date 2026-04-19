@@ -13,51 +13,94 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import dev.neurofocus.neurfocus_dnd.brain.ui.BrainScreen
+import dev.neurofocus.neurfocus_dnd.brain.ui.SessionsScreen
+import dev.neurofocus.neurfocus_dnd.brain.ui.SettingsScreen
+import dev.neurofocus.neurfocus_dnd.onboarding.OnboardingScreen
+import dev.neurofocus.neurfocus_dnd.onboarding.UserPrefs
+import dev.neurofocus.neurfocus_dnd.onboarding.UserProfile
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val prefs = UserPrefs(applicationContext)
         setContent {
             NeurfocusdndTheme {
-                NeurfocusdndApp()
+                AppRoot(prefs = prefs)
             }
         }
     }
 }
 
-@PreviewScreenSizes
 @Composable
-fun NeurfocusdndApp() {
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
+private fun AppRoot(prefs: UserPrefs) {
+    var profile by remember { mutableStateOf(prefs.getProfile()) }
+
+    val current = profile
+    if (current == null) {
+        OnboardingScreen(
+            onComplete = { newProfile ->
+                prefs.saveProfile(newProfile)
+                profile = newProfile
+            },
+        )
+    } else {
+        MainShell(
+            profile = current,
+            onResetOnboarding = {
+                prefs.clear()
+                profile = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun MainShell(
+    profile: UserProfile,
+    onResetOnboarding: () -> Unit,
+) {
+    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.BRAIN) }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
-            AppDestinations.entries.forEach {
+            AppDestinations.entries.forEach { destination ->
                 item(
                     icon = {
                         Icon(
-                            painterResource(it.icon),
-                            contentDescription = it.label
+                            painter = painterResource(destination.icon),
+                            contentDescription = destination.label,
                         )
                     },
-                    label = { Text(it.label) },
-                    selected = it == currentDestination,
-                    onClick = { currentDestination = it }
+                    label = { Text(destination.label) },
+                    selected = destination == currentDestination,
+                    onClick = { currentDestination = destination },
                 )
             }
-        }
+        },
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            BrainScreen(modifier = Modifier.padding(innerPadding))
+            when (currentDestination) {
+                AppDestinations.BRAIN -> BrainScreen(
+                    profile = profile,
+                    modifier = Modifier.padding(innerPadding),
+                )
+                AppDestinations.SESSIONS -> SessionsScreen(
+                    modifier = Modifier.padding(innerPadding),
+                )
+                AppDestinations.SETTINGS -> SettingsScreen(
+                    profile = profile,
+                    onResetOnboarding = onResetOnboarding,
+                    modifier = Modifier.padding(innerPadding),
+                )
+            }
         }
     }
 }
@@ -66,7 +109,7 @@ enum class AppDestinations(
     val label: String,
     val icon: Int,
 ) {
-    HOME("Home", R.drawable.ic_home),
-    FAVORITES("Favorites", R.drawable.ic_favorite),
-    PROFILE("Profile", R.drawable.ic_account_box),
+    BRAIN("Brain", R.drawable.ic_home),
+    SESSIONS("Sessions", R.drawable.ic_favorite),
+    SETTINGS("Settings", R.drawable.ic_account_box),
 }
