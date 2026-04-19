@@ -8,12 +8,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.neurofocus.neurfocus_dnd.NeuroApp
 import dev.neurofocus.neurfocus_dnd.brain.data.BleDeviceCandidate
 import dev.neurofocus.neurfocus_dnd.brain.data.BrainDataRepository
 import dev.neurofocus.neurfocus_dnd.brain.data.BrainRepositoryFactory
 import dev.neurofocus.neurfocus_dnd.brain.data.ble.BleEegRepository
+import dev.neurofocus.neurfocus_dnd.brain.domain.BandPowerHistoryEntry
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.DisconnectEvent
+import dev.neurofocus.neurfocus_dnd.cactus.CactusInsightEngine
+import dev.neurofocus.neurfocus_dnd.cactus.InsightUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,9 +25,17 @@ import kotlinx.coroutines.launch
 
 class BrainViewModel(
     private val repository: BrainDataRepository,
+    private val neuroApp: NeuroApp,
 ) : ViewModel() {
 
+    private val insightEngine = CactusInsightEngine(viewModelScope, neuroApp.cactusModelRepository)
+
     val state: StateFlow<BrainState> = repository.state
+
+    val insight: StateFlow<InsightUiState> = insightEngine.insight
+
+    private val _bandPowerHistory = MutableStateFlow<List<BandPowerHistoryEntry>>(emptyList())
+    val bandPowerHistory: StateFlow<List<BandPowerHistoryEntry>> = _bandPowerHistory.asStateFlow()
 
     private val _blePickerOpen = MutableStateFlow(false)
     val blePickerOpen: StateFlow<Boolean> = _blePickerOpen.asStateFlow()
@@ -34,19 +46,51 @@ class BrainViewModel(
     private val _blePickerDevices = MutableStateFlow<List<BleDeviceCandidate>>(emptyList())
     val blePickerDevices: StateFlow<List<BleDeviceCandidate>> = _blePickerDevices.asStateFlow()
 
-    /** Disconnect event log — populated from BleEegRepository if available, otherwise empty. */
     private val _disconnectLog = MutableStateFlow<List<DisconnectEvent>>(emptyList())
     val disconnectLog: StateFlow<List<DisconnectEvent>> = _disconnectLog.asStateFlow()
+
+    private var lastInsightMs = 0L
+    private var lastHistoryMs = 0L
 
     init {
         viewModelScope.launch { repository.connect() }
 
-        // Collect disconnect events from the BLE repository if available
         val bleRepo = repository as? BleEegRepository
         if (bleRepo != null) {
             viewModelScope.launch {
                 bleRepo.disconnectEvents.collect { event ->
                     _disconnectLog.value = (_disconnectLog.value + event).takeLast(100)
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            neuroApp.cactusModelRepository.modelGeneration.collect {
+                if (it > 0L) {
+                    insightEngine.resetModelForNewFile()
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            repository.state.collect { s ->
+                val now = System.currentTimeMillis()
+                when (s) {
+                    is BrainState.Live -> {
+                        if (now - lastInsightMs >= 2800L) {
+                            lastInsightMs = now
+                            insightEngine.scheduleRefresh(s)
+                        }
+                        if (now - lastHistoryMs >= 2000L) {
+                            lastHistoryMs = now
+                            val entry = BandPowerHistoryEntry(now, HashMap(s.bandPowers))
+                            _bandPowerHistory.value =
+                                (_bandPowerHistory.value + entry).takeLast(90)
+                        }
+                    }
+                    else -> {
+                        insightEngine.setDisconnectedPlaceholder()
+                    }
                 }
             }
         }
@@ -84,6 +128,7 @@ class BrainViewModel(
     }
 
     override fun onCleared() {
+        insightEngine.destroy()
         repository.dispose()
         super.onCleared()
     }
@@ -96,7 +141,11 @@ class BrainViewModel(
                     if (modelClass != BrainViewModel::class.java) {
                         error("Unsupported ViewModel: ${modelClass.name}")
                     }
-                    return BrainViewModel(BrainRepositoryFactory.create(application)) as T
+                    val neuro = application as NeuroApp
+                    return BrainViewModel(
+                        BrainRepositoryFactory.create(application),
+                        neuro,
+                    ) as T
                 }
             }
     }

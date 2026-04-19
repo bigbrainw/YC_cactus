@@ -46,10 +46,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.neurofocus.neurfocus_dnd.brain.data.BleDeviceCandidate
 import dev.neurofocus.neurfocus_dnd.brain.data.ble.BlePermissions
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.ui.BrainScreen
+import dev.neurofocus.neurfocus_dnd.brain.ui.CactusSettingsViewModel
 import dev.neurofocus.neurfocus_dnd.brain.ui.DebugScreen
 import dev.neurofocus.neurfocus_dnd.brain.ui.SettingsScreen
 import dev.neurofocus.neurfocus_dnd.brain.ui.rememberBrainViewModel
@@ -105,6 +107,9 @@ private fun MainShell(
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
     }
     val brainViewModel = rememberBrainViewModel()
+    val cactusSettingsViewModel: CactusSettingsViewModel = viewModel(
+        factory = remember(app) { CactusSettingsViewModel.factory(app) },
+    )
     val brainState by brainViewModel.state.collectAsStateWithLifecycle()
     val blePickerOpen by brainViewModel.blePickerOpen.collectAsStateWithLifecycle()
     val blePickerBusy by brainViewModel.blePickerBusy.collectAsStateWithLifecycle()
@@ -172,6 +177,7 @@ private fun MainShell(
                         SettingsScreen(
                             profile = profile,
                             onResetProfile = onResetProfile,
+                            cactusSettingsViewModel = cactusSettingsViewModel,
                             onNavigateBack = { settingsOpen = false },
                             modifier = Modifier.fillMaxSize(),
                         )

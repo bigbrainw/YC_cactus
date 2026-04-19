@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -26,10 +27,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.neurofocus.neurfocus_dnd.brain.data.signal.EegSignalProcessor
+import dev.neurofocus.neurfocus_dnd.NeuroApp
+import dev.neurofocus.neurfocus_dnd.brain.domain.BandPowerHistoryEntry
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.DisconnectEvent
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegDebugStats
+import dev.neurofocus.neurfocus_dnd.cactus.CactusNative
+import dev.neurofocus.neurfocus_dnd.cactus.DownloadLogStore
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavBar
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavy
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSkyBlue
@@ -67,8 +72,14 @@ fun DebugScreen(
     viewModel: BrainViewModel,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val neuro = context.applicationContext as NeuroApp
     val state by viewModel.state.collectAsStateWithLifecycle()
     val disconnectLog by viewModel.disconnectLog.collectAsStateWithLifecycle()
+    val insight by viewModel.insight.collectAsStateWithLifecycle()
+    val bandHistory by viewModel.bandPowerHistory.collectAsStateWithLifecycle()
+    val downloadLines by DownloadLogStore.lines.collectAsStateWithLifecycle()
+    val downloadSamples by DownloadLogStore.chunkSamples.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = modifier
@@ -109,6 +120,67 @@ fun DebugScreen(
 
         item {
             Spacer(Modifier.height(4.dp))
+            DebugSectionHeader("CACTUS / ON-DEVICE MODEL")
+            DebugRow("libcactus_loaded", CactusNative.isLoaded().toString())
+            val mf = neuro.cactusModelRepository.resolvedModelFile()
+            DebugRow("model_path", mf?.absolutePath ?: "—")
+            DebugRow("model_bytes", mf?.length()?.toString() ?: "0")
+            DebugRow("insight_loading", insight.loading.toString())
+            DebugRow("insight_used_native_handle", insight.usedNativeModel.toString())
+            DebugRow("insight_text", insight.text.take(200) + if (insight.text.length > 200) "…" else "")
+            insight.error?.let { DebugRow("insight_error", it) }
+        }
+
+        item {
+            Spacer(Modifier.height(4.dp))
+            DebugSectionHeader("DOWNLOAD LOG (ring buffer)")
+            if (downloadLines.isEmpty()) {
+                DebugRow("log", "empty")
+            }
+        }
+        items(downloadLines.reversed()) { line ->
+            Text(
+                text = line,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 9.sp,
+                color = DbgIdle,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(DbgSurface, RoundedCornerShape(3.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+
+        item {
+            Spacer(Modifier.height(4.dp))
+            DebugSectionHeader("DOWNLOAD CHUNK SAMPLES (hex previews)")
+            if (downloadSamples.isEmpty()) {
+                DebugRow("samples", "none yet")
+            }
+        }
+        items(downloadSamples.reversed()) { s ->
+            Text(
+                text = s,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 8.sp,
+                color = DbgTextKey,
+                modifier = Modifier.padding(vertical = 1.dp),
+            )
+        }
+
+        item {
+            Spacer(Modifier.height(4.dp))
+            DebugSectionHeader("BAND POWER vs TIME (last ${bandHistory.size} samples @ ~2s)")
+            if (bandHistory.isEmpty()) {
+                DebugRow("heatmap", "need LIVE stream")
+            }
+        }
+        items(bandHistory.takeLast(24).reversed()) { entry ->
+            HeatmapRow(entry)
+        }
+
+        item {
+            Spacer(Modifier.height(4.dp))
             DebugSectionHeader("DISCONNECT LOG  (last ${disconnectLog.size}, GATT status codes)")
             if (disconnectLog.isEmpty()) {
                 DebugRow("events", "none yet")
@@ -121,6 +193,27 @@ fun DebugScreen(
 
         item { Spacer(Modifier.height(80.dp)) }
     }
+}
+
+@Composable
+private fun HeatmapRow(entry: BandPowerHistoryEntry) {
+    val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+    val time = fmt.format(Date(entry.timestampMs))
+    val parts = EegBand.entries.joinToString("  ") { b ->
+        val p = entry.bands[b] ?: 0f
+        val digit = (p * 9f).roundToInt().coerceIn(0, 9)
+        "${b.name.first()}:$digit"
+    }
+    Text(
+        text = "$time  $parts",
+        fontFamily = FontFamily.Monospace,
+        fontSize = 9.sp,
+        color = DbgTextValue,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DbgSurface, RoundedCornerShape(3.dp))
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+    )
 }
 
 @Composable

@@ -3,10 +3,8 @@ package dev.neurofocus.neurfocus_dnd.brain.ui
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -36,31 +33,19 @@ import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroTextSecondary
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
 
 /**
- * Battery + Focus stats row.
- * Battery: firmware does not report it — shows "N/A" instead of a fake number.
+ * Focus stat — centered row (battery removed; firmware does not report it).
  */
 @Composable
 fun BrainMeter(
     state: BrainState.Live,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val batteryDisplay = state.battery?.value ?: -1
-        // if (batteryDisplay >= 0) {
-        //     Stat(label = "BATTERY", percent = batteryDisplay)
-        // } else {
-        //     StatUnavailable(label = "BATTERY", reason = "N/A")
-        // }
-        VerticalDivider(
-            modifier = Modifier.height(48.dp),
-            color = NeuroTextSecondary.copy(alpha = 0.25f),
-        )
         Stat(label = "FOCUS", percent = (state.focus.value * 100f).toInt())
     }
 }
@@ -82,14 +67,12 @@ private fun Stat(label: String, percent: Int) {
             color = NeuroTextPrimary,
         )
         Spacer(Modifier.height(8.dp))
-        // Track
         Box(
             modifier = Modifier
                 .width(BAR_WIDTH)
                 .height(BAR_HEIGHT)
                 .background(NeuroSkyBlue.copy(alpha = 0.25f)),
         ) {
-            // Fill
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -107,27 +90,7 @@ private fun Stat(label: String, percent: Int) {
     }
 }
 
-@Composable
-private fun StatUnavailable(label: String, reason: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = reason,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Light,
-            fontFamily = FontFamily.Monospace,
-            color = NeuroTextSecondary,
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            letterSpacing = 2.sp,
-            color = NeuroTextSecondary.copy(alpha = 0.55f),
-        )
-    }
-}
-
-private val BAR_WIDTH  = 72.dp
+private val BAR_WIDTH = 72.dp
 private val BAR_HEIGHT = 3.dp
 
 @Preview(showBackground = true, widthDp = 360, heightDp = 140)

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">neurfocus-dnd</string>
+    <string name="cactus_hf_org_url">https://huggingface.co/Cactus-Compute</string>
+    <string name="cactus_model_url_hint">Paste a direct file URL (…/resolve/main/…gguf). The HuggingFace page alone is not a binary download.</string>
 </resources>

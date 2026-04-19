@@ -70,19 +70,6 @@ data class BrainPalette(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Per-band glow colors (soft, saturated)
-// ─────────────────────────────────────────────────────────────────────────────
-
-private val BandGlowColors = mapOf(
-    EegBand.Delta to Color(0xFF5C6BC0), // indigo
-    EegBand.Theta to Color(0xFF00BCD4), // cyan
-    EegBand.Alpha to Color(0xFF66BB6A), // green
-    EegBand.LowBeta to Color(0xFFFFCA28), // amber
-    EegBand.HighBeta to Color(0xFFFFAB40), // orange
-    EegBand.Gamma to Color(0xFFFF7043), // deep-orange
-)
-
 // State-level glow colors
 private val ColorSearching  = Color(0xFF90CAF9) // pale blue
 private val ColorConnecting = Color(0xFF4DD0E1) // teal
@@ -114,9 +101,10 @@ private fun BrainState.kindOrdinal(): Int = when (this) {
  *   Idle       → faint grey glow, no pulse
  *   Searching  → slow pulsing pale-blue glow
  *   Connecting → faster pulsing teal glow
- *   Live       → per-band colored glows at distinct lobe-ish positions; each band
- *                jitters radius/alpha/center on its own harmonics (glowChaos) so
- *                activity reads as spatially volatile, not one blob.
+ *   Live       → superior-view anatomical glows (fixed anchors vs [ic_brain]): frontal /
+ *                parietal / occipital / motor / sensory / hemispheres / fissure / sulcus.
+ *                Pulse rate scales with each region’s driver band power; tight gradients
+ *                (less blur than before). SVG layer is not translated for glow alignment.
  *   Error      → flickering red glow
  *
  * Blink: whenever BrainState KIND changes (e.g. Searching→Connecting,
@@ -172,15 +160,15 @@ fun BrainCanvas(
         ),
         label = "fastPulse",
     )
-    // Slow 0→1 driver: each band combines this with different harmonics so glows do not move in lockstep.
-    val glowChaos by infiniteTransition.animateFloat(
+    // Global phase 0→1 — each region multiplies by band power for faster “cycling” when that band is hot.
+    val glowCycleT by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue  = 1f,
         animationSpec = infiniteRepeatable(
-            animation  = tween(11_400, easing = LinearEasing),
+            animation  = tween(2800, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
-        label = "glowChaos",
+        label = "glowCycleT",
     )
 
     // ── Per-band animated powers ────────────────────────────────────────────
@@ -226,7 +214,7 @@ fun BrainCanvas(
                     drawStateGlow(ColorConnecting, alpha = 0.30f + fastPulse * 0.40f)
                 }
                 is BrainState.Live -> {
-                    drawLiveGlows(animBandPowers, envelope, glowChaos)
+                    drawAnatomicalLiveGlows(animBandPowers, envelope, glowCycleT)
                 }
                 is BrainState.Error -> {
                     // Flicker: skip every ~3rd frame based on pulse speed
@@ -318,78 +306,74 @@ private fun DrawScope.drawStateGlow(color: Color, alpha: Float) {
     )
 }
 
+// Diagram-style colors (superior view reference): frontal blue, parietal pink, occipital orange, etc.
+private val DiagramFrontalBlue = Color(0xFF2196F3)
+private val DiagramParietalPink = Color(0xFFE91E63)
+private val DiagramOccipitalOrange = Color(0xFFFF9800)
+private val DiagramMotorAmber = Color(0xFFFFC107)
+private val DiagramSensoryCoral = Color(0xFFFF7043)
+private val DiagramCentralSlate = Color(0xFF90A4AE)
+private val DiagramFissureIndigo = Color(0xFF5C6BC0)
+private val DiagramHemisphereCyanL = Color(0xFF00ACC1)
+private val DiagramHemisphereCyanR = Color(0xFF26C6DA)
+
 /**
- * Per-band glows for the Live state.
- *
- * Each band has:
- *  - a distinct color
- *  - a distinct spatial offset (so they don't all pile on the center)
- *  - an outer halo + inner core, both sized by band power + envelope
- *
- * The offsets are arranged around an ellipse matching rough lobe positions:
- *   Delta  → center (background)
- *   Theta  → temporal (sides)
- *   Alpha  → occipital (bottom)
- *   Beta   → frontal (top)
- *   Gamma  → parietal (upper-center)
+ * Fixed superior-view anchors (fractions of canvas: x,y in 0..1, frontal = top).
+ * No translation of the brain asset — glows sit under the SVG in this box.
  */
-private fun DrawScope.drawLiveGlows(
+private fun DrawScope.drawAnatomicalLiveGlows(
     bandPowers: Map<EegBand, Float>,
     envelope: Float,
-    chaosT: Float,
+    cycleT: Float,
 ) {
-    data class GlowSpec(
-        val band: EegBand,
-        val cx: Float, // fractional center x
-        val cy: Float, // fractional center y
-        val outerR: Float, // outer radius as fraction of minDimension
-        val innerR: Float, // inner radius as fraction of minDimension
-        /** Unique phase multipliers so each lobe “breathes” on a different curve. */
-        val wobbleA: Float,
-        val wobbleB: Float,
-        val wobbleC: Float,
+    data class AnatomicalGlow(
+        val label: String,
+        val cx: Float,
+        val cy: Float,
+        val outerR: Float,
+        val innerR: Float,
+        val driver: EegBand,
+        val color: Color,
+        /** Higher = faster temporal modulation for that glow when driver band is strong. */
+        val cycleMul: Float,
+        val phaseOffset: Float,
+        val minPower: Float = 0.02f,
     )
 
     val specs = listOf(
-        GlowSpec(EegBand.Delta, 0.50f, 0.50f, 0.78f, 0.38f, 1.0f, 2.3f, 0.7f),
-        GlowSpec(EegBand.Theta, 0.32f, 0.58f, 0.52f, 0.26f, 2.7f, 1.1f, 3.4f), // left temporal
-        GlowSpec(EegBand.Theta, 0.68f, 0.58f, 0.52f, 0.26f, 3.1f, 2.0f, 1.3f), // right temporal (second theta lobe)
-        GlowSpec(EegBand.Alpha, 0.50f, 0.80f, 0.50f, 0.24f, 1.4f, 3.9f, 2.2f), // occipital
-        GlowSpec(EegBand.LowBeta, 0.50f, 0.20f, 0.50f, 0.24f, 3.6f, 0.9f, 2.8f), // frontal
-        GlowSpec(EegBand.HighBeta, 0.40f, 0.35f, 0.46f, 0.22f, 4.2f, 1.7f, 0.5f),
-        GlowSpec(EegBand.HighBeta, 0.60f, 0.35f, 0.46f, 0.22f, 2.2f, 4.1f, 3.0f),
-        GlowSpec(EegBand.Gamma, 0.50f, 0.40f, 0.48f, 0.22f, 5.3f, 2.6f, 1.9f),
+        AnatomicalGlow("Longitudinal fissure", 0.50f, 0.48f, 0.10f, 0.045f, EegBand.Delta, DiagramFissureIndigo, 0.55f, 0f),
+        AnatomicalGlow("Left cerebral hemisphere", 0.28f, 0.50f, 0.20f, 0.095f, EegBand.Theta, DiagramHemisphereCyanL, 0.95f, 0.7f),
+        AnatomicalGlow("Right cerebral hemisphere", 0.72f, 0.50f, 0.20f, 0.095f, EegBand.Theta, DiagramHemisphereCyanR, 0.95f, 1.4f),
+        AnatomicalGlow("Frontal lobe", 0.50f, 0.19f, 0.22f, 0.10f, EegBand.LowBeta, DiagramFrontalBlue, 1.25f, 0.3f),
+        AnatomicalGlow("Precentral gyrus / Primary motor", 0.43f, 0.30f, 0.11f, 0.048f, EegBand.HighBeta, DiagramMotorAmber, 1.55f, 1.1f),
+        AnatomicalGlow("Postcentral gyrus / Primary somatosensory", 0.57f, 0.30f, 0.11f, 0.048f, EegBand.Gamma, DiagramSensoryCoral, 1.65f, 2.0f),
+        AnatomicalGlow("Central sulcus", 0.50f, 0.30f, 0.065f, 0.028f, EegBand.LowBeta, DiagramCentralSlate, 1.85f, 2.6f, minPower = 0.04f),
+        AnatomicalGlow("Parietal lobe", 0.50f, 0.41f, 0.18f, 0.085f, EegBand.Gamma, DiagramParietalPink, 1.45f, 0.5f),
+        AnatomicalGlow("Occipital lobe", 0.50f, 0.79f, 0.20f, 0.09f, EegBand.Alpha, DiagramOccipitalOrange, 0.85f, 1.2f),
     )
 
     val tau = (2f * PI).toFloat()
     specs.forEach { spec ->
-        val power = bandPowers[spec.band] ?: 0f
-        if (power < 0.02f) return@forEach
+        val power = bandPowers[spec.driver] ?: 0f
+        if (power < spec.minPower) return@forEach
 
-        val v = bandVolatility(spec.band, chaosT, spec.wobbleA, spec.wobbleB, spec.wobbleC)
-        val v2 = bandVolatilitySecondary(spec.band, chaosT, spec.wobbleA, spec.wobbleB)
+        val freq = (0.55f + power * 2.8f) * spec.cycleMul
+        val phase = cycleT * freq * tau + spec.phaseOffset
+        val pulse = (0.45f + 0.55f * (0.5f + 0.5f * sin(phase))).coerceIn(0.15f, 1f)
 
-        val boost = 1f + envelope * (0.55f + 0.25f * v2 * power)
-        val alphaBase = (power * boost).coerceIn(0f, 0.92f)
-        val alpha = (alphaBase * (0.72f + 0.28f * (0.5f + 0.5f * v))).coerceIn(0f, 0.95f)
-        val color = BandGlowColors[spec.band] ?: Color.White
+        val alpha = (power * pulse * (0.42f + envelope * 0.38f)).coerceIn(0f, 0.68f)
+        val color = spec.color
 
-        val dx = size.width * (0.034f * v * power * spec.wobbleB)
-        val dy = size.height * (0.030f * v2 * power * spec.wobbleC)
-        val cx = size.width * spec.cx + dx
-        val cy = size.height * spec.cy + dy
+        val cx = size.width * spec.cx
+        val cy = size.height * spec.cy
+        val outerR = size.minDimension * spec.outerR
+        val innerR = size.minDimension * spec.innerR
 
-        val outerScale = (1f + 0.14f * v * power + 0.08f * envelope * sin(chaosT * tau * spec.wobbleA)).coerceIn(0.82f, 1.22f)
-        val innerScale = (1f + 0.18f * v2 * power + 0.06f * envelope * sin(chaosT * tau * spec.wobbleC + 1.3f)).coerceIn(0.78f, 1.28f)
-        val outerR = size.minDimension * spec.outerR * outerScale
-        val innerR = size.minDimension * spec.innerR * innerScale
-
-        // Outer soft halo — large, very transparent
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    color.copy(alpha = alpha * 0.42f),
-                    color.copy(alpha = alpha * 0.11f),
+                    color.copy(alpha = alpha * 0.62f),
+                    color.copy(alpha = alpha * 0.18f),
                     Color.Transparent,
                 ),
                 center = Offset(cx, cy),
@@ -398,13 +382,11 @@ private fun DrawScope.drawLiveGlows(
             center = Offset(cx, cy),
             radius = outerR,
         )
-
-        // Inner tight core — brighter, smaller
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    color.copy(alpha = alpha * 0.78f),
-                    color.copy(alpha = alpha * 0.22f),
+                    color.copy(alpha = alpha * 0.85f),
+                    color.copy(alpha = alpha * 0.28f),
                     Color.Transparent,
                 ),
                 center = Offset(cx, cy),
@@ -414,28 +396,6 @@ private fun DrawScope.drawLiveGlows(
             radius = innerR,
         )
     }
-}
-
-/** -1..1 — different bands / specs get different mixtures so glows decouple visually. */
-private fun bandVolatility(
-    band: EegBand,
-    chaosT: Float,
-    wa: Float,
-    wb: Float,
-    wc: Float,
-): Float {
-    val u = band.ordinal * 0.91f + wa * 0.17f + wb * 0.09f
-    val t = chaosT * (2f * PI).toFloat()
-    val a = sin(t * 1.9f * wa + u)
-    val b = sin(t * 3.7f * wb - u * 1.3f + 0.8f)
-    val c = sin(t * 6.4f * wc + u * u * 0.05f)
-    return (a * 0.48f + b * 0.32f + c * 0.20f).coerceIn(-1f, 1f)
-}
-
-private fun bandVolatilitySecondary(band: EegBand, chaosT: Float, wa: Float, wb: Float): Float {
-    val u = band.ordinal * 1.13f
-    val t = chaosT * (2f * PI).toFloat()
-    return (sin(t * 5.1f + wa + u * 0.7f) * 0.55f + sin(t * 8.3f - wb * 2.1f) * 0.45f).coerceIn(-1f, 1f)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
