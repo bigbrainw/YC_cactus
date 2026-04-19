@@ -29,11 +29,15 @@ import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegDebugStats
 import dev.neurofocus.neurfocus_dnd.brain.domain.FocusScore
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavy
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSkyBlue
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroTextPrimary
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroTextSecondary
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
 
 /**
- * Braun ET66-inspired stats row.
- * Battery: firmware does not report it — shows "--" instead of a fake number.
+ * Battery + Focus stats row.
+ * Battery: firmware does not report it — shows "N/A" instead of a fake number.
  */
 @Composable
 fun BrainMeter(
@@ -47,7 +51,6 @@ fun BrainMeter(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Battery: show "--" because firmware does not transmit this
         val batteryDisplay = state.battery?.value ?: -1
         if (batteryDisplay >= 0) {
             Stat(label = "BATTERY", percent = batteryDisplay)
@@ -56,7 +59,7 @@ fun BrainMeter(
         }
         VerticalDivider(
             modifier = Modifier.height(48.dp),
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+            color = NeuroTextSecondary.copy(alpha = 0.25f),
         )
         Stat(label = "FOCUS", percent = (state.focus.value * 100f).toInt())
     }
@@ -76,20 +79,22 @@ private fun Stat(label: String, percent: Int) {
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Light,
             fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = NeuroTextPrimary,
         )
         Spacer(Modifier.height(8.dp))
+        // Track
         Box(
             modifier = Modifier
                 .width(BAR_WIDTH)
                 .height(BAR_HEIGHT)
-                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+                .background(NeuroSkyBlue.copy(alpha = 0.25f)),
         ) {
+            // Fill
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(animatedFraction)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(NeuroNavy),
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -97,7 +102,7 @@ private fun Stat(label: String, percent: Int) {
             text = label,
             style = MaterialTheme.typography.labelSmall,
             letterSpacing = 2.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+            color = NeuroTextSecondary,
         )
     }
 }
@@ -110,19 +115,19 @@ private fun StatUnavailable(label: String, reason: String) {
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Light,
             fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            color = NeuroTextSecondary,
         )
         Spacer(Modifier.height(16.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             letterSpacing = 2.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+            color = NeuroTextSecondary.copy(alpha = 0.55f),
         )
     }
 }
 
-private val BAR_WIDTH = 72.dp
+private val BAR_WIDTH  = 72.dp
 private val BAR_HEIGHT = 3.dp
 
 @Preview(showBackground = true, widthDp = 360, heightDp = 140)
@@ -141,7 +146,7 @@ private fun BrainMeterPreview() {
                     windowRmsUv = 52f, windowSamples = 1265,
                     transportMode = "ascii", lastNotifyMs = System.currentTimeMillis(),
                 ),
-                battery = null,  // firmware does not report battery
+                battery = null,
             ),
         )
     }

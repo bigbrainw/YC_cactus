@@ -30,11 +30,28 @@ import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.DisconnectEvent
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegDebugStats
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavBar
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavy
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSkyBlue
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+// ── Debug terminal palette — semantic signal colors on the dark debug background ──────────
+// Background uses the global NeuroNavy/NeuroNavBar tokens.
+// Text signal colors (green/red/yellow/blue) are terminal conventions, not UI chrome.
+private val DbgBackground  = NeuroNavy                    // #1A1C2E — dark navy
+private val DbgSurface     = NeuroNavBar                  // #3D4154 — card/row surface
+private val DbgTextKey     = NeuroSkyBlue.copy(alpha = 0.7f) // muted sky for key column
+private val DbgTextValue   = Color(0xFFECEFF1)            // near-white for value column
+private val DbgGood        = Color(0xFF00E676)            // green  — healthy / live
+private val DbgWarn        = Color(0xFFFFD740)            // amber  — gaps / reconnect
+private val DbgError       = Color(0xFFFF5252)            // red    — error / timeout
+private val DbgIdle        = Color(0xFFB0BEC5)            // grey   — idle / searching
+private val DbgHeader      = NeuroSkyBlue                 // section titles = sky blue
+private val DbgDivider     = NeuroNavBar                  // divider line = nav bar grey
 
 /**
  * Debug tab — shows all real BLE stats, signal values, band powers, and disconnect events.
@@ -42,9 +59,8 @@ import kotlin.math.roundToInt
  * Honesty policy:
  *   - Every value displayed here comes directly from the real BLE stream.
  *   - If a value is unavailable, "--" is shown. No fake numbers.
- *   - Focus score is labeled "heuristic (Goertzel/band-ratio)" — not claimed to be the
- *     trained LR classifier (that requires training data not available on-device).
- *   - Battery: firmware does not currently transmit battery level → shown as "N/A (firmware)".
+ *   - Focus score is labeled "heuristic (Goertzel/band-ratio)" — not the trained LR classifier.
+ *   - Battery: firmware does not transmit battery level → shown as "N/A (firmware)".
  */
 @Composable
 fun DebugScreen(
@@ -57,7 +73,7 @@ fun DebugScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0D0D0D))
+            .background(DbgBackground)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -118,10 +134,10 @@ private fun BleStateBlock(state: BrainState) {
         is BrainState.Error    -> "ERROR: ${state.message}"
     }
     DebugRow("state", statusText, valueColor = when (state) {
-        is BrainState.Live         -> Color(0xFF00E676)
-        is BrainState.Error        -> Color(0xFFFF5252)
-        is BrainState.Reconnecting -> Color(0xFFFFD740)
-        else                       -> Color(0xFFB0BEC5)
+        is BrainState.Live         -> DbgGood
+        is BrainState.Error        -> DbgError
+        is BrainState.Reconnecting -> DbgWarn
+        else                       -> DbgIdle
     })
 
     if (state is BrainState.Live) {
@@ -129,15 +145,15 @@ private fun BleStateBlock(state: BrainState) {
         DebugRow("total_samples", d.totalSamples.toString())
         DebugRow("ble_notifies", d.bleNotifyCount.toString())
         DebugRow("seq_gaps", d.seqGaps.toString(),
-            valueColor = if (d.seqGaps > 0) Color(0xFFFFD740) else null)
+            valueColor = if (d.seqGaps > 0) DbgWarn else null)
         DebugRow("ignored_payloads", d.ignoredPayloads.toString(),
-            valueColor = if (d.ignoredPayloads > 0) Color(0xFFFFD740) else null)
+            valueColor = if (d.ignoredPayloads > 0) DbgWarn else null)
         DebugRow("effective_rate",
             "${d.effectiveRateSps.roundTo1()}  SPS  (firmware ADC rate: 600 SPS, BLE ~253 SPS expected)")
         DebugRow("window_samples", "${d.windowSamples}  (target: ~1265 for 5s @ 253 SPS)")
         val ageMs = System.currentTimeMillis() - d.lastNotifyMs
         DebugRow("last_notify_ms_ago", "${ageMs}ms",
-            valueColor = if (ageMs > 3000) Color(0xFFFF5252) else Color(0xFF00E676))
+            valueColor = if (ageMs > 3000) DbgError else DbgGood)
     }
 
     if (state is BrainState.Reconnecting) {
@@ -172,7 +188,7 @@ private fun BandPowerBlock(bandPowers: Map<EegBand, Float>) {
     DebugRow(
         key = "sum (should=1.0)",
         value = total.roundTo3(),
-        valueColor = if (abs(total - 1f) < 0.01f) Color(0xFF00E676) else Color(0xFFFF5252),
+        valueColor = if (abs(total - 1f) < 0.01f) DbgGood else DbgError,
     )
 }
 
@@ -184,7 +200,7 @@ private fun FocusBlock(live: BrainState.Live) {
     DebugRow(
         "p_engaged",
         "$pct%  ${if (engaged) ">> ENGAGED" else "  resting"}",
-        valueColor = if (engaged) Color(0xFF00E676) else Color(0xFF90CAF9),
+        valueColor = if (engaged) DbgGood else DbgIdle,
     )
     DebugRow("raw_envelope_µV", "${live.rawEnvelopeUv.roundTo2()} µV")
     DebugRow("battery", live.battery?.let { "${it.value}%" } ?: "N/A (firmware does not transmit battery)")
@@ -211,14 +227,14 @@ private fun DisconnectEventRow(event: DisconnectEvent) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF1A1A1A), RoundedCornerShape(4.dp))
+            .background(DbgSurface, RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Text(
             text = "[$time] status=${event.gattStatus}  state=${event.newState}",
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
-            color = Color(0xFFFFD740),
+            color = DbgWarn,
             modifier = Modifier.weight(1f),
         )
     }
@@ -226,7 +242,7 @@ private fun DisconnectEventRow(event: DisconnectEvent) {
         text = "  ${event.message}",
         fontFamily = FontFamily.Monospace,
         fontSize = 10.sp,
-        color = Color(0xFFB0BEC5),
+        color = DbgIdle,
         modifier = Modifier.padding(start = 12.dp, bottom = 2.dp),
     )
 }
@@ -238,10 +254,10 @@ private fun DebugSectionHeader(title: String) {
         fontFamily = FontFamily.Monospace,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
-        color = Color(0xFF64B5F6),
+        color = DbgHeader,
         modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
     )
-    HorizontalDivider(color = Color(0xFF263238), thickness = 1.dp)
+    HorizontalDivider(color = DbgDivider, thickness = 1.dp)
     Spacer(Modifier.height(2.dp))
 }
 
@@ -257,14 +273,14 @@ private fun DebugRow(key: String, value: String, valueColor: Color? = null) {
             text = key,
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
-            color = Color(0xFF78909C),
+            color = DbgTextKey,
             modifier = Modifier.width(200.dp),
         )
         Text(
             text = value,
             fontFamily = FontFamily.Monospace,
             fontSize = 10.sp,
-            color = valueColor ?: Color(0xFFECEFF1),
+            color = valueColor ?: DbgTextValue,
             modifier = Modifier
                 .weight(1f)
                 .horizontalScroll(rememberScrollState()),
@@ -279,7 +295,7 @@ private fun buildBar(fraction: Float, width: Int = 20): String {
 }
 
 private fun bandColor(band: EegBand): Color = when (band) {
-    EegBand.Delta    -> Color(0xFF90CAF9)
+    EegBand.Delta    -> NeuroSkyBlue.copy(alpha = 0.8f)
     EegBand.Theta    -> Color(0xFF80DEEA)
     EegBand.Alpha    -> Color(0xFFA5D6A7)
     EegBand.LowBeta  -> Color(0xFFFFCC02)
