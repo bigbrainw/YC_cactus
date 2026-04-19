@@ -14,16 +14,25 @@ object CactusNative {
     @Volatile
     private var loadOk = false
 
+    /** Populated when [isLoaded] is false after the first load attempt (wrong ABI, missing .so, etc.). */
+    @Volatile
+    private var loadFailureMessage: String? = null
+
+    fun loadFailureReason(): String? = loadFailureMessage
+
     fun isLoaded(): Boolean {
         if (!loadAttempted) synchronized(this) {
             if (!loadAttempted) {
                 loadAttempted = true
                 loadOk = try {
                     System.loadLibrary("cactus")
+                    loadFailureMessage = null
                     true
-                } catch (_: UnsatisfiedLinkError) {
+                } catch (e: UnsatisfiedLinkError) {
+                    loadFailureMessage = e.message ?: e.javaClass.simpleName
                     false
-                } catch (_: Throwable) {
+                } catch (e: Throwable) {
+                    loadFailureMessage = e.message ?: e.javaClass.simpleName
                     false
                 }
             }
@@ -42,7 +51,10 @@ object CactusNative {
     }
 
     fun lastError(): String {
-        if (!isLoaded()) return "libcactus.so not loaded"
+        if (!isLoaded()) {
+            return loadFailureMessage?.let { "libcactus.so not loaded ($it)" }
+                ?: "libcactus.so not loaded (place libcactus.so in app/src/main/jniLibs/arm64-v8a and rebuild)"
+        }
         return cactusGetLastError()
     }
 

@@ -167,7 +167,7 @@ private fun AnalyticalInsightCard(insight: InsightUiState) {
             }
             if (insight.usedNativeModel) {
                 Text(
-                    text = "On-device Cactus handle active (completion still heuristic until JNI wired).",
+                    text = "On-device Cactus engine active (native handle open).",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

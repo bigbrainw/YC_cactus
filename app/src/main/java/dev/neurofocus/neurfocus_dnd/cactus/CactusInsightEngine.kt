@@ -100,8 +100,16 @@ class CactusInsightEngine(
                 modelHandle = h
                 DownloadLogStore.append("cactusInit ok handle=$h")
             } else if (modelHandle == 0L) {
-                DownloadLogStore.append("libcactus.so not loaded — heuristic only")
+                val why = CactusNative.loadFailureReason() ?: "no libcactus in APK"
+                DownloadLogStore.append("libcactus not loaded ($why) — weights alone are not the engine; add .so to jniLibs/arm64-v8a and rebuild")
             }
+        }
+        if (modelHandle == 0L && !CactusNative.isLoaded()) {
+            return firstSentenceOnly(
+                buildHeuristicAnalyticalInsight(live) +
+                    " Weights are on device, but this APK does not include libcactus.so " +
+                    "(copy it from the Cactus Android build into app/src/main/jniLibs/arm64-v8a/, rebuild; use arm64, not x86 emulator).",
+            )
         }
         val nativeLine = mutex.withLock {
             if (modelHandle == 0L) null

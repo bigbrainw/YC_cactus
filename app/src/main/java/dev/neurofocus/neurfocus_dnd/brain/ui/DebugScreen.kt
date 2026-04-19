@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.os.Build
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.neurofocus.neurfocus_dnd.brain.data.signal.EegSignalProcessor
 import dev.neurofocus.neurfocus_dnd.NeuroApp
@@ -122,6 +123,8 @@ fun DebugScreen(
             Spacer(Modifier.height(4.dp))
             DebugSectionHeader("CACTUS / ON-DEVICE MODEL")
             DebugRow("libcactus_loaded", CactusNative.isLoaded().toString())
+            DebugRow("libcactus_load_error", CactusNative.loadFailureReason() ?: "—")
+            DebugRow("device_abis", Build.SUPPORTED_ABIS.joinToString())
             val mf = neuro.cactusModelRepository.resolvedModelFile()
             DebugRow("model_path", mf?.absolutePath ?: "—")
             DebugRow("model_bytes", mf?.length()?.toString() ?: "0")
