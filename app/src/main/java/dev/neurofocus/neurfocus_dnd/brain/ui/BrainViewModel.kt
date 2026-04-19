@@ -8,22 +8,33 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.neurofocus.neurfocus_dnd.brain.data.BleDeviceCandidate
 import dev.neurofocus.neurfocus_dnd.brain.data.BrainDataRepository
 import dev.neurofocus.neurfocus_dnd.brain.data.BrainRepositoryFactory
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
  * Owns the [BrainDataRepository] for the current Activity scope and exposes
- * its state to the UI. Uses BLE when the device supports it; otherwise a
- * synthetic [dev.neurofocus.neurfocus_dnd.brain.data.FakeEegRepository].
+ * its state to the UI.
  */
 class BrainViewModel(
     private val repository: BrainDataRepository,
 ) : ViewModel() {
 
     val state: StateFlow<BrainState> = repository.state
+
+    private val _blePickerOpen = MutableStateFlow(false)
+    val blePickerOpen: StateFlow<Boolean> = _blePickerOpen.asStateFlow()
+
+    private val _blePickerBusy = MutableStateFlow(false)
+    val blePickerBusy: StateFlow<Boolean> = _blePickerBusy.asStateFlow()
+
+    private val _blePickerDevices = MutableStateFlow<List<BleDeviceCandidate>>(emptyList())
+    val blePickerDevices: StateFlow<List<BleDeviceCandidate>> = _blePickerDevices.asStateFlow()
 
     init {
         viewModelScope.launch { repository.connect() }
@@ -32,6 +43,33 @@ class BrainViewModel(
     /** Call after runtime Bluetooth permissions are granted. */
     fun retryConnect() {
         viewModelScope.launch { repository.connect() }
+    }
+
+    fun openBleDevicePicker() {
+        _blePickerOpen.value = true
+        refreshBleDeviceList()
+    }
+
+    fun dismissBleDevicePicker() {
+        _blePickerOpen.value = false
+    }
+
+    fun refreshBleDeviceList() {
+        viewModelScope.launch {
+            _blePickerBusy.value = true
+            try {
+                _blePickerDevices.value = repository.scanNeuroFocusDevices()
+            } finally {
+                _blePickerBusy.value = false
+            }
+        }
+    }
+
+    fun connectBleDevice(address: String) {
+        viewModelScope.launch {
+            repository.connectToDeviceAddress(address)
+            _blePickerOpen.value = false
+        }
     }
 
     override fun onCleared() {

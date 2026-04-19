@@ -11,8 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSurfaceWhite
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroTokens
 
 /**
  * Rounded “glass” surface. Content is laid out in a [Column] so multiple
@@ -23,14 +23,14 @@ import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSurfaceWhite
 fun GlassCard(
     modifier: Modifier = Modifier,
     containerColor: Color = NeuroSurfaceWhite,
-    contentPadding: Dp = 20.dp,
+    contentPadding: Dp = NeuroTokens.glassCardPadding,
     content: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(NeuroTokens.cornerCard)
     Surface(
         modifier = modifier
             .shadow(
-                elevation = 10.dp,
+                elevation = NeuroTokens.glassCardElevation,
                 shape = shape,
                 ambientColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
                 spotColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),

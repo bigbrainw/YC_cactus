@@ -8,13 +8,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -44,9 +47,8 @@ import dev.neurofocus.neurfocus_dnd.ui.components.GlassCard
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavy
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSkyBlue
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSurfaceWhite
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroTokens
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
-
-private const val BRAIN_ASPECT = 0.85f
 
 @Composable
 fun BrainScreen(
@@ -74,62 +76,92 @@ private fun BrainScreenContent(
         MappingMode.Emotional -> BrainPalette.warm()
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    val scroll = rememberScrollState()
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "Brain mapping",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Text(
-            text = "Hi, ${profile.firstName} · ${state.statusLine()}",
-            style = MaterialTheme.typography.labelMedium,
-            letterSpacing = 1.2.sp,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        SegmentedModeControl(
-            mode = mode,
-            onModeChange = { mode = it },
-        )
-
-        Box(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f / BRAIN_ASPECT),
-            contentAlignment = Alignment.Center,
+                .fillMaxSize()
+                .verticalScroll(scroll)
+                .padding(horizontal = NeuroTokens.spaceLg)
+                .padding(top = NeuroTokens.spaceSm, bottom = NeuroTokens.contentAboveFloatingNav),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(NeuroTokens.spaceLg),
         ) {
-            BrainCanvas(
-                state = state,
-                modifier = Modifier.fillMaxSize(),
-                palette = palette,
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Brain mapping",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "Hi, ${profile.firstName} · ${state.statusLine()}",
+                    style = MaterialTheme.typography.labelMedium,
+                    letterSpacing = 1.2.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            SegmentedModeControl(
+                mode = mode,
+                onModeChange = { mode = it },
             )
-            BrainQuadrantOverlay(modifier = Modifier.fillMaxSize())
-            TooltipBubble(
-                text = when (mode) {
-                    MappingMode.Cognitive -> "Analytical thinking"
-                    MappingMode.Emotional -> "Emotional balance"
-                },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(x = 12.dp, y = 8.dp),
-            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                val brainWidth = maxWidth * 0.95f
+                val brainHeight = brainWidth * NeuroTokens.brainAspectHeightRatio
+                val constrainedHeight = minOf(brainHeight, 400.dp) // Larger brain
+                val finalWidth = constrainedHeight / NeuroTokens.brainAspectHeightRatio
+
+                Box(
+                    modifier = Modifier
+                        .width(finalWidth)
+                        .height(constrainedHeight),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BrainCanvas(
+                        state = state,
+                        modifier = Modifier.fillMaxSize(),
+                        palette = palette,
+                    )
+                    if (advancedResearch) {
+                        BrainQuadrantOverlay(modifier = Modifier.fillMaxSize())
+                    }
+                    TooltipBubble(
+                        text = when (mode) {
+                            MappingMode.Cognitive -> "Analytical thinking"
+                            MappingMode.Emotional -> "Emotional balance"
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset(x = (-8).dp, y = (-4).dp),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            if (state is BrainState.Live) {
+                BrainMeter(state = state)
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(NeuroTokens.spaceMd)) {
+                AdvancedResearchRow(
+                    checked = advancedResearch,
+                    onCheckedChange = { advancedResearch = it },
+                )
+
+                AdviceLine(state = state)
+            }
+            Spacer(Modifier.height(NeuroTokens.spaceSm))
         }
-
-        AdvancedResearchRow(
-            checked = advancedResearch,
-            onCheckedChange = { advancedResearch = it },
-        )
-
-        AdviceLine(state = state)
-        Spacer(Modifier.height(8.dp))
     }
 }
 
@@ -143,10 +175,10 @@ private fun SegmentedModeControl(
             .fillMaxWidth()
             .background(
                 color = NeuroSurfaceWhite.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(22.dp),
+                shape = RoundedCornerShape(NeuroTokens.cornerPill),
             )
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(NeuroTokens.spaceXs),
+        horizontalArrangement = Arrangement.spacedBy(NeuroTokens.spaceXs),
     ) {
         MappingMode.entries.forEach { m ->
             val selected = m == mode
@@ -159,19 +191,22 @@ private fun SegmentedModeControl(
                 modifier = Modifier
                     .weight(1f)
                     .shadow(
-                        elevation = if (selected) 6.dp else 0.dp,
-                        shape = RoundedCornerShape(18.dp),
+                        elevation = if (selected) NeuroTokens.topBarIconShadow else 0.dp,
+                        shape = RoundedCornerShape(NeuroTokens.cornerIcon),
                     )
                     .background(
                         color = if (selected) NeuroSkyBlue.copy(alpha = 0.55f) else NeuroSurfaceWhite.copy(alpha = 0.01f),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(NeuroTokens.cornerIcon),
                     )
                     .clickable(
                         interactionSource = interaction,
                         indication = null,
                         onClick = { onModeChange(m) },
                     )
-                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                    .padding(
+                        vertical = NeuroTokens.spaceMd - NeuroTokens.spaceXs,
+                        horizontal = NeuroTokens.spaceSm,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -191,9 +226,9 @@ private fun TooltipBubble(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         modifier = modifier
-            .shadow(4.dp, RoundedCornerShape(20.dp))
-            .background(NeuroSurfaceWhite, RoundedCornerShape(20.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .shadow(NeuroTokens.spaceXs, RoundedCornerShape(NeuroTokens.cornerTooltip))
+            .background(NeuroSurfaceWhite, RoundedCornerShape(NeuroTokens.cornerTooltip))
+            .padding(horizontal = NeuroTokens.spaceMd, vertical = NeuroTokens.spaceXs + NeuroTokens.spaceXs),
         style = MaterialTheme.typography.labelLarge,
         color = NeuroNavy,
     )
@@ -204,7 +239,7 @@ private fun AdvancedResearchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    GlassCard(containerColor = NeuroSkyBlue.copy(alpha = 0.4f), contentPadding = 16.dp) {
+    GlassCard(containerColor = NeuroSkyBlue.copy(alpha = 0.4f), contentPadding = NeuroTokens.spaceMd) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -231,11 +266,11 @@ private fun AdvancedResearchRow(
 }
 
 private fun BrainState.statusLine(): String = when (this) {
-    BrainState.Idle -> "IDLE"
-    BrainState.Searching -> "SEARCHING…"
-    BrainState.Connecting -> "CONNECTING…"
-    is BrainState.Live -> "LIVE  •  ${electrodeSite.name.uppercase()}"
-    is BrainState.Error -> "ERROR  •  $message"
+    BrainState.Idle -> "READY TO CONNECT"
+    BrainState.Searching -> "SCANNING FOR HEADBAND..."
+    BrainState.Connecting -> "ESTABLISHING LINK..."
+    is BrainState.Live -> "CONNECTED  •  STREAMING 600Hz"
+    is BrainState.Error -> "DISCONNECTED  •  $message"
 }
 
 @Preview(showBackground = true, widthDp = 360, heightDp = 760)

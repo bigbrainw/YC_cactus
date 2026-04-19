@@ -8,10 +8,6 @@ import dev.neurofocus.neurfocus_dnd.util.DefaultDispatcherProvider
 object BrainRepositoryFactory {
 
     fun create(application: Application): BrainDataRepository {
-        val pm = application.packageManager
-        if (!pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            return FakeEegRepository(DefaultDispatcherProvider())
-        }
         return BleEegRepository(application)
     }
 }

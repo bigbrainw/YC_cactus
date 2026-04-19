@@ -11,7 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PersonOutline
-import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.BluetoothConnected
+import androidx.compose.material.icons.outlined.BluetoothSearching
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -22,35 +23,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSkyBlue
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSurfaceWhite
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroTokens
 
 @Composable
 fun NeuroTopBar(
     modifier: Modifier = Modifier,
-    onPowerClick: () -> Unit = {},
+    onBleDevicesClick: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    isConnected: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(
+                horizontal = NeuroTokens.topBarHorizontalPadding,
+                vertical = NeuroTokens.topBarVerticalPadding,
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RoundedSquareIconButton(
-            onClick = onPowerClick,
-            accessibilityLabel = "Power",
+            onClick = onBleDevicesClick,
+            accessibilityLabel = "Bluetooth devices",
         ) {
             Icon(
-                imageVector = Icons.Outlined.PowerSettingsNew,
+                imageVector = if (isConnected) Icons.Outlined.BluetoothConnected else Icons.Outlined.BluetoothSearching,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = if (isConnected) NeuroSkyBlue else MaterialTheme.colorScheme.onSurface,
             )
         }
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(NeuroTokens.topBarIconSpacing),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             RoundedSquareIconButton(
@@ -87,22 +93,22 @@ private fun RoundedSquareIconButton(
     Box(
         modifier = modifier
             .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(18.dp),
+                elevation = NeuroTokens.topBarIconShadow,
+                shape = RoundedCornerShape(NeuroTokens.cornerIcon),
                 ambientColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                 spotColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
             )
-            .size(48.dp)
+            .size(NeuroTokens.topBarIconSize)
             .background(
                 color = NeuroSurfaceWhite,
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(NeuroTokens.cornerIcon),
             ),
         contentAlignment = Alignment.Center,
     ) {
         IconButton(
             onClick = onClick,
             modifier = Modifier
-                .size(48.dp)
+                .size(NeuroTokens.topBarIconSize)
                 .semantics { contentDescription = accessibilityLabel },
             colors = IconButtonDefaults.iconButtonColors(
                 contentColor = MaterialTheme.colorScheme.onSurface,

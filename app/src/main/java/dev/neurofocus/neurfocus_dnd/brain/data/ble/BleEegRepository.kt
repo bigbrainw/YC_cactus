@@ -17,6 +17,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import dev.neurofocus.neurfocus_dnd.brain.data.BleDeviceCandidate
 import dev.neurofocus.neurfocus_dnd.brain.data.BrainDataRepository
 import dev.neurofocus.neurfocus_dnd.brain.domain.BatteryPercent
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
@@ -87,7 +88,7 @@ class BleEegRepository(
         connectJob?.cancel()
         withTimeoutOrNull(CONNECT_TOTAL_TIMEOUT_MS) {
             connectJob = scope.launch(dispatchers.default) {
-                ioMutex.withLock { runConnectLocked() }
+                ioMutex.withLock { runConnectLocked(forcedDevice = null) }
             }
             connectJob?.join()
         } ?: run {
@@ -99,7 +100,101 @@ class BleEegRepository(
         }
     }
 
-    private suspend fun runConnectLocked() {
+    override suspend fun connectToDeviceAddress(address: String) {
+        val device = try {
+            bluetoothAdapter?.getRemoteDevice(address)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+        if (device == null) {
+            _state.update { BrainState.Error("Invalid Bluetooth address.") }
+            return
+        }
+        connectJob?.cancel()
+        withTimeoutOrNull(CONNECT_TOTAL_TIMEOUT_MS) {
+            connectJob = scope.launch(dispatchers.default) {
+                ioMutex.withLock { runConnectLocked(forcedDevice = device) }
+            }
+            connectJob?.join()
+        } ?: run {
+            connectJob?.cancel()
+            _state.update {
+                BrainState.Error("Connection timed out. Move closer to the device and try again.")
+            }
+            teardownGatt()
+        }
+    }
+
+    override suspend fun scanNeuroFocusDevices(): List<BleDeviceCandidate> =
+        withContext(dispatchers.main) {
+            if (!BlePermissions.hasAll(app)) return@withContext emptyList()
+            val adapter = bluetoothAdapter ?: return@withContext emptyList()
+            if (!adapter.isEnabled) return@withContext emptyList()
+            val scanner = adapter.bluetoothLeScanner ?: return@withContext emptyList()
+            suspendCancellableCoroutine { cont ->
+                val resumed = AtomicBoolean(false)
+                val byAddress = linkedMapOf<String, BleDeviceCandidate>()
+                lateinit var scanCallback: ScanCallback
+                val handler = Handler(Looper.getMainLooper())
+                val finishRunnable = object : Runnable {
+                    override fun run() {
+                        val list = byAddress.values.toList().sortedBy { it.displayName.lowercase() }
+                        if (!resumed.compareAndSet(false, true)) return
+                        try {
+                            scanner.stopScan(scanCallback)
+                        } catch (_: Throwable) {
+                        }
+                        cont.resume(list)
+                    }
+                }
+                fun finishEarlyEmpty() {
+                    handler.removeCallbacks(finishRunnable)
+                    if (!resumed.compareAndSet(false, true)) return
+                    try {
+                        scanner.stopScan(scanCallback)
+                    } catch (_: Throwable) {
+                    }
+                    cont.resume(emptyList())
+                }
+                scanCallback = object : ScanCallback() {
+                    override fun onScanResult(callbackType: Int, result: ScanResult) {
+                        val name = result.device.name
+                            ?: result.scanRecord?.deviceName
+                            ?: return
+                        if (!name.startsWith(BleSpec.DEVICE_NAME_PREFIX)) return
+                        val d = result.device
+                        byAddress[d.address] = BleDeviceCandidate(displayName = name, address = d.address)
+                    }
+
+                    override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                        for (r in results) {
+                            onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, r)
+                        }
+                    }
+
+                    override fun onScanFailed(errorCode: Int) {
+                        finishEarlyEmpty()
+                    }
+                }
+                cont.invokeOnCancellation {
+                    handler.removeCallbacks(finishRunnable)
+                    try {
+                        scanner.stopScan(scanCallback)
+                    } catch (_: Throwable) {
+                    }
+                }
+                scanner.startScan(
+                    null,
+                    ScanSettings.Builder()
+                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                        .build(),
+                    scanCallback,
+                )
+                handler.postDelayed(finishRunnable, PICKER_SCAN_MS)
+            }
+        }
+
+    private suspend fun runConnectLocked(forcedDevice: BluetoothDevice?) {
         if (!BlePermissions.hasAll(app)) {
             _state.update {
                 BrainState.Error("Bluetooth permission required. Grant it in Settings, then reopen the app.")
@@ -117,56 +212,60 @@ class BleEegRepository(
         teardownGatt()
         _state.update { BrainState.Searching }
 
-        val device = withContext(Dispatchers.Main) {
-            withTimeoutOrNull(SCAN_TIMEOUT_MS) {
-                suspendCancellableCoroutine { cont ->
-                    val scanner = adapter.bluetoothLeScanner
-                    if (scanner == null) {
-                        cont.resume(null)
-                        return@suspendCancellableCoroutine
-                    }
-                    val callback = object : ScanCallback() {
-                        private fun finish(dev: BluetoothDevice?) {
-                            if (cont.isCompleted) return
+        val device = if (forcedDevice != null) {
+            forcedDevice
+        } else {
+            withContext(Dispatchers.Main) {
+                withTimeoutOrNull(SCAN_TIMEOUT_MS) {
+                    suspendCancellableCoroutine { cont ->
+                        val scanner = adapter.bluetoothLeScanner
+                        if (scanner == null) {
+                            cont.resume(null)
+                            return@suspendCancellableCoroutine
+                        }
+                        val callback = object : ScanCallback() {
+                            private fun finish(dev: BluetoothDevice?) {
+                                if (cont.isCompleted) return
+                                try {
+                                    scanner.stopScan(this)
+                                } catch (_: Throwable) {
+                                }
+                                cont.resume(dev)
+                            }
+
+                            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                                val name = result.device.name
+                                    ?: result.scanRecord?.deviceName
+                                    ?: return
+                                if (name.startsWith(BleSpec.DEVICE_NAME_PREFIX)) {
+                                    finish(result.device)
+                                }
+                            }
+
+                            override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                                for (r in results) {
+                                    onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, r)
+                                }
+                            }
+
+                            override fun onScanFailed(errorCode: Int) {
+                                finish(null)
+                            }
+                        }
+                        cont.invokeOnCancellation {
                             try {
-                                scanner.stopScan(this)
+                                scanner.stopScan(callback)
                             } catch (_: Throwable) {
                             }
-                            cont.resume(dev)
                         }
-
-                        override fun onScanResult(callbackType: Int, result: ScanResult) {
-                            val name = result.device.name
-                                ?: result.scanRecord?.deviceName
-                                ?: return
-                            if (name.startsWith(BleSpec.DEVICE_NAME_PREFIX)) {
-                                finish(result.device)
-                            }
-                        }
-
-                        override fun onBatchScanResults(results: MutableList<ScanResult>) {
-                            for (r in results) {
-                                onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, r)
-                            }
-                        }
-
-                        override fun onScanFailed(errorCode: Int) {
-                            finish(null)
-                        }
+                        scanner.startScan(
+                            null,
+                            ScanSettings.Builder()
+                                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                                .build(),
+                            callback,
+                        )
                     }
-                    cont.invokeOnCancellation {
-                        try {
-                            scanner.stopScan(callback)
-                        } catch (_: Throwable) {
-                        }
-                    }
-                    scanner.startScan(
-                        null,
-                        ScanSettings.Builder()
-                            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                            .build(),
-                        callback,
-                    )
                 }
             }
         }
@@ -207,6 +306,11 @@ class BleEegRepository(
                                     return
                                 }
                                 this@BleEegRepository.gatt = gatt
+                                // Request high priority and larger MTU for the 600Hz stream
+                                gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    gatt.requestMtu(MTU_REQUEST)
+                                }
                                 gatt.discoverServices()
                             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                                 tryResume(false)
@@ -447,9 +551,11 @@ class BleEegRepository(
         val TOKENS_REGEX = Regex("\\s+")
         const val RING_SIZE = 256
         const val SCAN_TIMEOUT_MS = 45_000L
+        const val PICKER_SCAN_MS = 10_000L
         const val GATT_SETUP_TIMEOUT_MS = 30_000L
         const val CONNECT_TOTAL_TIMEOUT_MS = 90_000L
-        const val UPDATE_EVERY_N_SAMPLES = 8
+        const val UPDATE_EVERY_N_SAMPLES = 24 // Optimized for 600Hz (approx 25 updates/sec)
+        const val MTU_REQUEST = 512 // Max MTU for efficient ASCII packet handling
         const val HF_SCALE = 2.5e6f
         const val HF2_SCALE = 5.0e12f
         const val ADC_SCALE = 4_000_000f

@@ -26,23 +26,23 @@ data class BrainPalette(
 ) {
     companion object {
         fun cool(): BrainPalette = BrainPalette(
-            outline = Color(0xFF1A1C2E),
-            regionIdle = Color(0xFFE8F4FF),
-            regionActive = Color(0xFF5BA3E8),
-            electrode = Color(0xFF1A1C2E),
-            electrodeGlow = Color(0x553B82F6),
-            highlight = Color(0x99FFFFFF),
-            vignette = Color(0x22001A33),
+            outline = Color(0xFF111111),
+            regionIdle = Color(0xFFF0F0F0),
+            regionActive = Color(0xFF007AFF),
+            electrode = Color(0xFF000000),
+            electrodeGlow = Color(0x66007AFF),
+            highlight = Color(0xBBFFFFFF),
+            vignette = Color(0x44000000),
         )
 
         fun warm(): BrainPalette = BrainPalette(
-            outline = Color(0xFF3B2C1F),
-            regionIdle = Color(0xFFF4ECDF),
-            regionActive = Color(0xFFE38F2D),
-            electrode = Color(0xFFC76E1F),
-            electrodeGlow = Color(0x55EA9E48),
-            highlight = Color(0x77FFFFFF),
-            vignette = Color(0x33180A00),
+            outline = Color(0xFF221100),
+            regionIdle = Color(0xFFFDF5E6),
+            regionActive = Color(0xFFFF9500),
+            electrode = Color(0xFF8B4513),
+            electrodeGlow = Color(0x66FF9500),
+            highlight = Color(0x99FFFFFF),
+            vignette = Color(0x55442200),
         )
 
         /** Choose palette by battery — Night Shift mood under 25%. */

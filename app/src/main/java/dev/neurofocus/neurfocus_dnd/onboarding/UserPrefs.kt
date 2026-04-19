@@ -33,10 +33,21 @@ class UserPrefs(context: Context) {
         prefs.edit().clear().apply()
     }
 
-    private companion object {
-        const val PREFS_NAME = "neurofocus_user_prefs"
-        const val KEY_FIRST_NAME = "first_name"
-        const val KEY_LAST_NAME = "last_name"
-        const val KEY_ONBOARDED = "is_onboarded"
+    /** Ensures a profile row exists — hackathon default, no onboarding flow. */
+    fun ensureDefaultProfile(): UserProfile {
+        getProfile()?.let { return it }
+        val profile = UserProfile(firstName = DEFAULT_DISPLAY_NAME, lastName = "")
+        saveProfile(profile)
+        return profile
+    }
+
+    companion object {
+        /** Shown in the shell until the user changes it in settings. */
+        const val DEFAULT_DISPLAY_NAME = "User"
+
+        private const val PREFS_NAME = "neurofocus_user_prefs"
+        private const val KEY_FIRST_NAME = "first_name"
+        private const val KEY_LAST_NAME = "last_name"
+        private const val KEY_ONBOARDED = "is_onboarded"
     }
 }
