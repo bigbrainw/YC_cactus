@@ -44,7 +44,5 @@ data class BrainPalette(
             highlight = Color(0x99FFFFFF),
             vignette = Color(0x55442200),
         )
-
-        private const val WARM_THRESHOLD_PERCENT = 25
     }
 }

@@ -339,10 +339,15 @@ class BleEegRepository(
                                 tryResume(false)
                                 return
                             }
-                            desc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                             setupStep = 1
-                            @Suppress("DEPRECATION")
-                            gatt.writeDescriptor(desc)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                gatt.writeDescriptor(desc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                desc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                                @Suppress("DEPRECATION")
+                                gatt.writeDescriptor(desc)
+                            }
                         }
 
                         override fun onDescriptorWrite(
@@ -358,10 +363,16 @@ class BleEegRepository(
                             val cc = cmdChar
                             if (cc != null) {
                                 setupStep = 2
-                                cc.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                                cc.value = BleSpec.CMD_STREAM_START
-                                @Suppress("DEPRECATION")
-                                gatt.writeCharacteristic(cc)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    gatt.writeCharacteristic(cc, BleSpec.CMD_STREAM_START, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    cc.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                                    @Suppress("DEPRECATION")
+                                    cc.value = BleSpec.CMD_STREAM_START
+                                    @Suppress("DEPRECATION")
+                                    gatt.writeCharacteristic(cc)
+                                }
                             } else {
                                 tryResume(true)
                             }
@@ -381,15 +392,25 @@ class BleEegRepository(
                         override fun onCharacteristicChanged(
                             gatt: BluetoothGatt,
                             characteristic: BluetoothGattCharacteristic,
+                            value: ByteArray,
                         ) {
                             if (characteristic.uuid != dataUuid) return
-                            val payload = characteristic.value ?: return
-                            val text = String(payload, StandardCharsets.UTF_8).trim()
+                            val text = String(value, StandardCharsets.UTF_8).trim()
                             if (text.isEmpty()) return
                             for (token in TOKENS_REGEX.split(text)) {
                                 if (token.isEmpty()) continue
                                 token.toLongOrNull()?.let { ingestSample(it) }
                             }
+                        }
+
+                        @Deprecated("Deprecated in Java")
+                        override fun onCharacteristicChanged(
+                            gatt: BluetoothGatt,
+                            characteristic: BluetoothGattCharacteristic,
+                        ) {
+                            @Suppress("DEPRECATION")
+                            val payload = characteristic.value ?: return
+                            onCharacteristicChanged(gatt, characteristic, payload)
                         }
                     }
 
