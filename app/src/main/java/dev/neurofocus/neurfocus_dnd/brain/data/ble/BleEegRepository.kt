@@ -16,6 +16,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.Log
 import dev.neurofocus.neurfocus_dnd.brain.data.BleDeviceCandidate
@@ -49,6 +50,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.ArrayDeque
 import java.util.UUID
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -68,7 +70,10 @@ import kotlin.math.abs
  *   4. Auto-reconnects indefinitely after any disconnect with exponential backoff.
  *   5. Logs every disconnect event with GATT status code and timestamp.
  *   6. Sends 'b' command after notification setup (BLE_USAGE.md).
- *   7. Requests CONNECTION_PRIORITY_HIGH + MTU 247 on connect.
+ *   7. After CCCD write: CONNECTION_PRIORITY_BALANCED + MTU 247 (HIGH was linked to ~5s
+ *      supervision drops on ESP32-S3 under RF/ADC load; Chrome negotiates differently).
+ *   8. GATT callbacks on a dedicated thread; notify payloads processed on a single worker
+ *      so the GATT thread never runs Goertzel / StateFlow work.
  *
  * Disconnect investigation notes:
  *   - GATT status 8  = GATT_CONN_TIMEOUT (phone too far, or ESP32 supervision timeout)
@@ -91,6 +96,15 @@ class BleEegRepository(
     )
 
     private val scope = CoroutineScope(SupervisorJob() + dispatchers.default)
+
+    /** BLE callbacks run here so they are not serialized behind main-thread UI work. */
+    private val gattHandlerThread = HandlerThread("BleGatt").apply { start() }
+    private val gattHandler = Handler(gattHandlerThread.looper)
+
+    /** Ordered, off-GATT-thread processing of notify payloads (parse + Goertzel). */
+    private val notifyExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "BleNotify").apply { isDaemon = true }
+    }
 
     private val _state = MutableStateFlow<BrainState>(BrainState.Idle)
     override val state: StateFlow<BrainState> = _state.asStateFlow()
@@ -203,6 +217,8 @@ class BleEegRepository(
         connectJob?.cancel()
         Handler(Looper.getMainLooper()).post { teardownGatt() }
         scope.cancel()
+        notifyExecutor.shutdown()
+        gattHandlerThread.quitSafely()
     }
 
     // --- Connection loop with persistent auto-reconnect ---
@@ -313,8 +329,6 @@ class BleEegRepository(
                                     tryResume(false); return
                                 }
                                 this@BleEegRepository.gatt = g
-                                g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
-                                g.requestMtu(MTU_REQUEST)
                                 g.discoverServices()
                             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                                 logDisconnect(status, newState, gattStatusLabel(status))
@@ -346,6 +360,11 @@ class BleEegRepository(
 
                         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
                             if (setupStep != 1 || status != BluetoothGatt.GATT_SUCCESS) { tryResume(false); return }
+                            // Tune link after notifications are armed — avoids stacking MTU + priority
+                            // with service discovery (stack/OEM sensitive). BALANCED reduces ESP32 misses
+                            // vs HIGH (7.5–15 ms) which can hit supervision timeout ~5s on some phones.
+                            g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_BALANCED)
+                            g.requestMtu(MTU_REQUEST)
                             val cc = cmdChar
                             if (cc != null) {
                                 setupStep = 2
@@ -376,17 +395,30 @@ class BleEegRepository(
                         @Suppress("DEPRECATION")
                         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
                             if (characteristic.uuid == dataUuid) {
-                                onNotifyData(characteristic.value ?: return)
+                                val v = characteristic.value?.copyOf() ?: return
+                                notifyExecutor.execute { onNotifyData(v) }
                             }
                         }
 
                         // Android 13+ notification callback
                         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
-                            if (characteristic.uuid == dataUuid) onNotifyData(value)
+                            if (characteristic.uuid == dataUuid) {
+                                val payload = value.copyOf()
+                                notifyExecutor.execute { onNotifyData(payload) }
+                            }
                         }
                     }
 
-                    val g = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val g = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        device.connectGatt(
+                            app,
+                            false,
+                            callback,
+                            BluetoothDevice.TRANSPORT_LE,
+                            BluetoothDevice.PHY_LE_1M_MASK,
+                            gattHandler,
+                        )
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         device.connectGatt(app, false, callback, BluetoothDevice.TRANSPORT_LE)
                     } else {
                         @Suppress("DEPRECATION") device.connectGatt(app, false, callback)
