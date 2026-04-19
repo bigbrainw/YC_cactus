@@ -50,7 +50,7 @@ fun BrainMeter(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Stat(label = "BATTERY", percent = state.battery.value)
+        Stat(label = "Brain Battery", percent = state.battery.value)
         VerticalDivider(
             modifier = Modifier.height(48.dp),
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
