@@ -26,13 +26,13 @@ data class BrainPalette(
 ) {
     companion object {
         fun cool(): BrainPalette = BrainPalette(
-            outline = Color(0xFF1F2933),
-            regionIdle = Color(0xFFEEF1F4),
-            regionActive = Color(0xFF2563EB),
-            electrode = Color(0xFF1D4ED8),
+            outline = Color(0xFF1A1C2E),
+            regionIdle = Color(0xFFE8F4FF),
+            regionActive = Color(0xFF5BA3E8),
+            electrode = Color(0xFF1A1C2E),
             electrodeGlow = Color(0x553B82F6),
             highlight = Color(0x99FFFFFF),
-            vignette = Color(0x33000814),
+            vignette = Color(0x22001A33),
         )
 
         fun warm(): BrainPalette = BrainPalette(

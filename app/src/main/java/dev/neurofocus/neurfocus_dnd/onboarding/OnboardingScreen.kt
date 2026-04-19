@@ -17,10 +17,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,17 +43,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.neurofocus.neurfocus_dnd.ui.shell.NeuroGradientBackground
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroNavy
+import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroSkyBlue
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
 import kotlinx.coroutines.delay
 
-/**
- * Two-step onboarding: Welcome (name capture) → Connecting (BLE pairing).
- * On successful pairing, [onComplete] is invoked with the captured profile.
- *
- * The Connecting step currently fakes pairing with a 2.5s delay so the rest
- * of the app can develop without hardware. Real BLE scan replaces this in
- * Phase 4 — the screen contract does not change.
- */
 @Composable
 fun OnboardingScreen(
     onComplete: (UserProfile) -> Unit,
@@ -60,26 +58,29 @@ fun OnboardingScreen(
     var firstName by rememberSaveable { mutableStateOf("") }
     var lastName by rememberSaveable { mutableStateOf("") }
 
-    when (step) {
-        OnboardingStep.Welcome -> WelcomeStep(
-            firstName = firstName,
-            lastName = lastName,
-            onFirstNameChange = { firstName = it },
-            onLastNameChange = { lastName = it },
-            onNext = { step = OnboardingStep.Connecting },
-            modifier = modifier,
-        )
-        OnboardingStep.Connecting -> ConnectingStep(
-            modifier = modifier,
-            onPaired = {
-                onComplete(
-                    UserProfile(
-                        firstName = firstName.trim(),
-                        lastName = lastName.trim(),
+    Box(modifier = modifier.fillMaxSize()) {
+        NeuroGradientBackground()
+        when (step) {
+            OnboardingStep.Welcome -> WelcomeStep(
+                firstName = firstName,
+                lastName = lastName,
+                onFirstNameChange = { firstName = it },
+                onLastNameChange = { lastName = it },
+                onNext = { step = OnboardingStep.Connecting },
+                modifier = Modifier.fillMaxSize(),
+            )
+            OnboardingStep.Connecting -> ConnectingStep(
+                modifier = Modifier.fillMaxSize(),
+                onPaired = {
+                    onComplete(
+                        UserProfile(
+                            firstName = firstName.trim(),
+                            lastName = lastName.trim(),
+                        ),
                     )
-                )
-            },
-        )
+                },
+            )
+        }
     }
 }
 
@@ -99,23 +100,31 @@ private fun WelcomeStep(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 32.dp, vertical = 64.dp),
+            .padding(horizontal = 28.dp, vertical = 56.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = "NeuroFocus",
-            style = MaterialTheme.typography.headlineLarge,
+            style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Light,
-            letterSpacing = 1.sp,
+            letterSpacing = 0.5.sp,
+            color = NeuroNavy,
         )
-        Spacer(Modifier.height(56.dp))
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "Calm, glassy focus for your day.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(40.dp))
         Text(
             text = "Hi, I'm",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+            color = NeuroNavy.copy(alpha = 0.55f),
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = firstName,
             onValueChange = onFirstNameChange,
@@ -123,6 +132,11 @@ private fun WelcomeStep(
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = NeuroSkyBlue.copy(alpha = 0.9f),
+                unfocusedBorderColor = NeuroNavy.copy(alpha = 0.12f),
+            ),
         )
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
@@ -132,14 +146,28 @@ private fun WelcomeStep(
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = NeuroSkyBlue.copy(alpha = 0.9f),
+                unfocusedBorderColor = NeuroNavy.copy(alpha = 0.12f),
+            ),
         )
-        Spacer(Modifier.height(48.dp))
+        Spacer(Modifier.height(40.dp))
         AnimatedVisibility(visible = canProceed) {
             Button(
                 onClick = onNext,
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = NeuroSkyBlue.copy(alpha = 0.65f),
+                    contentColor = NeuroNavy,
+                ),
             ) {
-                Text("Next")
+                Text(
+                    text = "Next",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
     }
@@ -171,7 +199,7 @@ private fun ConnectingStep(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 32.dp, vertical = 64.dp),
+            .padding(horizontal = 28.dp, vertical = 56.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -180,15 +208,15 @@ private fun ConnectingStep(
                 .size(140.dp)
                 .scale(scale)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                .background(NeuroSkyBlue.copy(alpha = 0.35f)),
         )
-        Spacer(Modifier.height(48.dp))
+        Spacer(Modifier.height(40.dp))
         Text(
             text = "Searching for your NeuroFocus device…",
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Light,
+            fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = NeuroNavy.copy(alpha = 0.75f),
         )
     }
 }
@@ -199,13 +227,17 @@ private const val FAKE_PAIR_DELAY_MS = 2_500L
 @Composable
 private fun WelcomeStepPreview() {
     NeurfocusdndTheme {
-        WelcomeStep(
-            firstName = "",
-            lastName = "",
-            onFirstNameChange = {},
-            onLastNameChange = {},
-            onNext = {},
-        )
+        Box(Modifier.fillMaxSize()) {
+            NeuroGradientBackground()
+            WelcomeStep(
+                firstName = "",
+                lastName = "",
+                onFirstNameChange = {},
+                onLastNameChange = {},
+                onNext = {},
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 
@@ -213,6 +245,9 @@ private fun WelcomeStepPreview() {
 @Composable
 private fun ConnectingStepPreview() {
     NeurfocusdndTheme {
-        ConnectingStep(onPaired = {})
+        Box(Modifier.fillMaxSize()) {
+            NeuroGradientBackground()
+            ConnectingStep(onPaired = {}, modifier = Modifier.fillMaxSize())
+        }
     }
 }

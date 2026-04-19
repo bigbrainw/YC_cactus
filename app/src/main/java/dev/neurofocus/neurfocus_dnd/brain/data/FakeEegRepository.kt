@@ -61,8 +61,9 @@ class FakeEegRepository(
         _state.update { BrainState.Idle }
     }
 
-    /** Tear-down for tests / lifecycle owners. */
-    fun shutdown() {
+    override fun dispose() {
+        pumpJob?.cancel()
+        pumpJob = null
         scope.cancel()
     }
 

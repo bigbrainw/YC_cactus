@@ -18,4 +18,7 @@ interface BrainDataRepository {
     suspend fun connect()
 
     suspend fun disconnect()
+
+    /** Synchronous teardown for [androidx.lifecycle.ViewModel.onCleared]. */
+    fun dispose()
 }
