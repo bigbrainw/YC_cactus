@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Path
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainRegion
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
 import dev.neurofocus.neurfocus_dnd.brain.domain.ElectrodeSite
+import kotlin.math.sin
 
 /**
  * Pure, stateless geometry for the brain visualization.
@@ -24,15 +25,49 @@ internal object BrainGeometry {
     fun outlinePath(size: Size): Path = Path().apply {
         val w = size.width
         val h = size.height
+        val s = 0.05f // scale factor for waviness
+        val f = 15f // frequency of sulci
 
         moveTo(w * 0.50f, h * 0.03f)
-        cubicTo(w * 0.78f, h * 0.04f, w * 0.95f, h * 0.18f, w * 0.98f, h * 0.40f)
-        cubicTo(w * 1.00f, h * 0.62f, w * 0.92f, h * 0.85f, w * 0.72f, h * 0.96f)
-        cubicTo(w * 0.62f, h * 0.99f, w * 0.55f, h * 0.99f, w * 0.50f, h * 0.98f)
-        cubicTo(w * 0.45f, h * 0.99f, w * 0.38f, h * 0.99f, w * 0.28f, h * 0.96f)
-        cubicTo(w * 0.08f, h * 0.85f, w * 0.00f, h * 0.62f, w * 0.02f, h * 0.40f)
-        cubicTo(w * 0.05f, h * 0.18f, w * 0.22f, h * 0.04f, w * 0.50f, h * 0.03f)
+
+        // Right side with curly sulci
+        // Frontal to Temporal
+        for (i in 1..20) {
+            val t = i / 20f
+            val px = lerp(0.50f, 0.98f, t) + sin(t * f) * s
+            val py = lerp(0.03f, 0.40f, t)
+            lineTo(px * w, py * h)
+        }
+        // Temporal to Occipital
+        for (i in 1..20) {
+            val t = i / 20f
+            val px = lerp(0.98f, 0.72f, t) + sin(t * f + 2f) * s
+            val py = lerp(0.40f, 0.96f, t)
+            lineTo(px * w, py * h)
+        }
+        // Back center
+        lineTo(w * 0.50f, h * 0.98f)
+
+        // Left side with curly sulci
+        // Occipital to Temporal
+        for (i in 1..20) {
+            val t = i / 20f
+            val px = lerp(0.50f, 0.02f, t) - sin(t * f + 4f) * s
+            val py = lerp(0.98f, 0.40f, t)
+            lineTo(px * w, py * h)
+        }
+        // Temporal to Frontal
+        for (i in 1..20) {
+            val t = i / 20f
+            val px = lerp(0.02f, 0.50f, t) - sin(t * f + 6f) * s
+            val py = lerp(0.40f, 0.03f, t)
+            lineTo(px * w, py * h)
+        }
         close()
+    }
+
+    private fun lerp(start: Float, stop: Float, fraction: Float): Float {
+        return start + (stop - start) * fraction
     }
 
     /**

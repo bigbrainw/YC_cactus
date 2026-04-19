@@ -27,7 +27,7 @@ data class BrainPalette(
     companion object {
         fun cool(): BrainPalette = BrainPalette(
             outline = Color(0xFF111111),
-            regionIdle = Color(0xFFF0F0F0),
+            regionIdle = Color(0xFFE0E0E0).copy(alpha = 0.4f),
             regionActive = Color(0xFF007AFF),
             electrode = Color(0xFF000000),
             electrodeGlow = Color(0x66007AFF),
@@ -37,7 +37,7 @@ data class BrainPalette(
 
         fun warm(): BrainPalette = BrainPalette(
             outline = Color(0xFF221100),
-            regionIdle = Color(0xFFFDF5E6),
+            regionIdle = Color(0xFFE0E0E0).copy(alpha = 0.4f),
             regionActive = Color(0xFFFF9500),
             electrode = Color(0xFF8B4513),
             electrodeGlow = Color(0x66FF9500),
