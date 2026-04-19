@@ -4,7 +4,7 @@ import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
 
 /**
- * Deterministic one-liner from relative band powers (Fp1 / single-channel proxy).
+ * Deterministic single-sentence readout from relative band powers (Fp1 / single-channel proxy).
  * Not a medical interpretation — avoids claiming diagnosis.
  */
 fun buildHeuristicAnalyticalInsight(live: BrainState.Live): String {
@@ -17,21 +17,14 @@ fun buildHeuristicAnalyticalInsight(live: BrainState.Live): String {
     val hb = v(EegBand.HighBeta)
     val g = v(EegBand.Gamma)
     val focus = live.focus.value
-
     val dominant = EegBand.entries.maxBy { v(it) }
-    val parts = mutableListOf<String>()
-    parts += when {
-        lb + hb > a + 0.15f -> "Frontal-motor band energy is elevated versus alpha."
-        a > lb + hb + 0.1f -> "Posterior alpha is relatively strong — idling / relaxed wakefulness bias."
-        t > d + 0.12f      -> "Theta is prominent versus delta — cognitive control / drowsiness axis worth watching."
-        d > 0.22f          -> "Slow delta power is nontrivial — check for drowsiness or eye/artifact."
-        g > 0.18f          -> "Gamma-band relative power is up — binding / active processing proxy at Fp1."
-        else               -> "Band distribution is mixed; no single band dominates strongly."
+    val shape = when {
+        lb + hb > a + 0.15f -> "beta-leaning versus alpha"
+        a > lb + hb + 0.1f -> "alpha-leaning (relaxed wake / idle bias)"
+        t > d + 0.12f -> "theta-leaning versus delta"
+        d > 0.22f -> "slow-wave/delta prominence (consider drowsiness or artifact)"
+        g > 0.18f -> "gamma-leaning (active processing proxy)"
+        else -> "mixed bands without a sharp dominant"
     }
-    parts += " Dominant relative band: ${dominant.label}. "
-    parts += "Focus heuristic ${(focus * 100).toInt()}% (not the trained offline classifier). "
-    if (!live.debugStats.transportMode.equals("ascii", ignoreCase = true)) {
-        parts += "Transport ${live.debugStats.transportMode.uppercase()} @ ${live.debugStats.effectiveRateSps.toInt()} SPS."
-    }
-    return parts.joinToString("").trim()
+    return "Fp1-style proxy looks $shape with ${dominant.label} strongest and focus heuristic ${(focus * 100).toInt()}% (not clinical advice)."
 }

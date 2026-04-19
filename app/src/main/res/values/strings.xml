@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">neurfocus-dnd</string>
     <string name="cactus_hf_org_url">https://huggingface.co/Cactus-Compute</string>
-    <string name="cactus_model_url_hint">Paste a direct file URL (…/resolve/main/…gguf). The HuggingFace page alone is not a binary download.</string>
+    <!-- Smallest Gemma-class pack on Cactus-Compute: Gemma 3 270M IT INT4 (see docs/cactus-readme.md model table; Gemma 4 E2B is larger). -->
+    <string name="cactus_default_model_download_url">https://huggingface.co/Cactus-Compute/gemma-3-270m-it/resolve/main/weights/gemma-3-270m-it-int4.zip</string>
+    <string name="cactus_model_url_hint">Paste a direct file URL (…/resolve/main/…). Default below is Gemma 3 270M INT4 weights from Cactus-Compute — not a medical device.</string>
 </resources>

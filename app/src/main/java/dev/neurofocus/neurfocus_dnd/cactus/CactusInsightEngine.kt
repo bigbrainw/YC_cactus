@@ -15,8 +15,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * Loads local Cactus weights (when [CactusNative] + file present), keeps a model handle,
- * and publishes short analytical copy. Until `cactusComplete` JNI is wired, copy is
- * [buildHeuristicAnalyticalInsight] while still exercising init/destroy when possible.
+ * and publishes one-sentence analytical copy via [CactusNative.tryComplete] when the JNI
+ * export exists, otherwise [buildHeuristicAnalyticalInsight].
  */
 class CactusInsightEngine(
     private val appScope: CoroutineScope,
@@ -70,7 +70,9 @@ class CactusInsightEngine(
 
     fun setError(message: String) {
         _insight.value = InsightUiState(
-            text = "Add a model in Settings and place libcactus.so in jniLibs (arm64-v8a).",
+            text = firstSentenceOnly(
+                "Add libcactus.so under jniLibs (arm64-v8a) and download the default Gemma 3 270M INT4 pack in Settings.",
+            ),
             loading = false,
             error = message,
             usedNativeModel = false,
@@ -80,8 +82,10 @@ class CactusInsightEngine(
     private suspend fun runInference(live: BrainState.Live): String {
         val file = modelRepo.resolvedModelFile()
         if (file == null || !file.isFile || file.length() == 0L) {
-            return buildHeuristicAnalyticalInsight(live) +
-                " On-device model file missing — download in Settings."
+            return firstSentenceOnly(
+                buildHeuristicAnalyticalInsight(live) +
+                    " Download the default Gemma 3 270M INT4 weights from Settings to run on-device Gemma.",
+            )
         }
         mutex.withLock {
             if (modelHandle == 0L && CactusNative.isLoaded()) {
@@ -89,7 +93,9 @@ class CactusInsightEngine(
                 if (h == 0L) {
                     val err = runCatching { CactusNative.lastError() }.getOrElse { it.message ?: "init failed" }
                     DownloadLogStore.append("cactusInit failed: $err")
-                    return buildHeuristicAnalyticalInsight(live) + " (cactusInit: $err)"
+                    return firstSentenceOnly(
+                        buildHeuristicAnalyticalInsight(live) + " (Cactus init failed: $err.)",
+                    )
                 }
                 modelHandle = h
                 DownloadLogStore.append("cactusInit ok handle=$h")
@@ -97,8 +103,23 @@ class CactusInsightEngine(
                 DownloadLogStore.append("libcactus.so not loaded — heuristic only")
             }
         }
-        // Native completion not JNI-wrapped yet — still return heuristic for readable UI.
-        return buildHeuristicAnalyticalInsight(live)
+        val nativeLine = mutex.withLock {
+            if (modelHandle == 0L) null
+            else {
+                val msg = cactusAnalyticalMessagesJson(live)
+                val opt = cactusAnalyticalOptionsJson()
+                CactusNative.tryComplete(modelHandle, msg, opt).also { r ->
+                    if (r != null) DownloadLogStore.append("cactusComplete ok len=${r.length}")
+                    else DownloadLogStore.append("cactusComplete null or skipped")
+                }
+            }
+        }
+        val text = nativeLine?.let { firstSentenceOnly(it) }
+        return if (!text.isNullOrBlank()) {
+            text
+        } else {
+            firstSentenceOnly(buildHeuristicAnalyticalInsight(live))
+        }
     }
 
     /** Call after a new model file is installed so the next refresh re-inits. */

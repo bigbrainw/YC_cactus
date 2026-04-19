@@ -117,7 +117,7 @@ class CactusModelRepository(
     }
 
     companion object {
-        /** Default on-disk name; replace URL in strings to match your Cactus-compatible weights. */
-        const val MODEL_FILENAME = "cactus_model.gguf"
+        /** Matches [R.string.cactus_default_model_download_url] artifact name. */
+        const val MODEL_FILENAME = "gemma-3-270m-it-int4.zip"
     }
 }

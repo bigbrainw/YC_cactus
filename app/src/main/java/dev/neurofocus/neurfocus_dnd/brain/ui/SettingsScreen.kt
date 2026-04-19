@@ -68,8 +68,9 @@ fun SettingsScreen(
     val repo = neuro.cactusModelRepository
     val prefs = remember(context) { CactusModelPrefs(context.applicationContext) }
 
+    val defaultModelUrl = stringResource(R.string.cactus_default_model_download_url)
     var urlField by rememberSaveable {
-        mutableStateOf(prefs.modelDownloadUrl.orEmpty())
+        mutableStateOf(prefs.modelDownloadUrl?.takeIf { it.isNotBlank() } ?: defaultModelUrl)
     }
 
     val downloadState by cactusSettingsViewModel.downloadState.collectAsStateWithLifecycle()
