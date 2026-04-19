@@ -13,7 +13,6 @@ data class BleDeviceCandidate(
  *
  * Implementations must:
  *  - Expose state as [StateFlow] so collectors get the latest snapshot on subscribe.
- *  - Use [update] for atomic transitions.
  *  - Inject a [kotlinx.coroutines.CoroutineDispatcher] via constructor.
  */
 interface BrainDataRepository {

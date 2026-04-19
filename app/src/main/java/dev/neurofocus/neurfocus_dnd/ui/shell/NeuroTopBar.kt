@@ -9,10 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.BluetoothSearching
+import androidx.compose.material.icons.outlined.BluetoothConnected
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PersonOutline
-import androidx.compose.material.icons.outlined.BluetoothConnected
-import androidx.compose.material.icons.outlined.BluetoothSearching
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -50,7 +50,7 @@ fun NeuroTopBar(
             accessibilityLabel = "Bluetooth devices",
         ) {
             Icon(
-                imageVector = if (isConnected) Icons.Outlined.BluetoothConnected else Icons.Outlined.BluetoothSearching,
+                imageVector = if (isConnected) Icons.Outlined.BluetoothConnected else Icons.AutoMirrored.Outlined.BluetoothSearching,
                 contentDescription = null,
                 tint = if (isConnected) NeuroSkyBlue else MaterialTheme.colorScheme.onSurface,
             )

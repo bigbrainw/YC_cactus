@@ -21,8 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -37,7 +35,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,9 +45,7 @@ import dev.neurofocus.neurfocus_dnd.brain.ui.SettingsScreen
 import dev.neurofocus.neurfocus_dnd.brain.ui.rememberBrainViewModel
 import dev.neurofocus.neurfocus_dnd.onboarding.UserPrefs
 import dev.neurofocus.neurfocus_dnd.onboarding.UserProfile
-import dev.neurofocus.neurfocus_dnd.ui.shell.NeuroFloatingNav
 import dev.neurofocus.neurfocus_dnd.ui.shell.NeuroGradientBackground
-import dev.neurofocus.neurfocus_dnd.ui.shell.NeuroNavDestination
 import dev.neurofocus.neurfocus_dnd.ui.shell.NeuroTopBar
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeuroTokens
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme

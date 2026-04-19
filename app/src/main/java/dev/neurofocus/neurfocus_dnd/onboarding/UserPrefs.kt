@@ -2,6 +2,7 @@ package dev.neurofocus.neurfocus_dnd.onboarding
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 /**
  * Thin SharedPreferences wrapper for the onboarding profile.
@@ -22,15 +23,15 @@ class UserPrefs(context: Context) {
     }
 
     fun saveProfile(profile: UserProfile) {
-        prefs.edit()
-            .putString(KEY_FIRST_NAME, profile.firstName)
-            .putString(KEY_LAST_NAME, profile.lastName)
-            .putBoolean(KEY_ONBOARDED, true)
-            .apply()
+        prefs.edit {
+            putString(KEY_FIRST_NAME, profile.firstName)
+            putString(KEY_LAST_NAME, profile.lastName)
+            putBoolean(KEY_ONBOARDED, true)
+        }
     }
 
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 
     /** Ensures a profile row exists — hackathon default, no onboarding flow. */

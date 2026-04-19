@@ -45,10 +45,6 @@ data class BrainPalette(
             vignette = Color(0x55442200),
         )
 
-        /** Choose palette by battery — Night Shift mood under 25%. */
-        fun forBattery(percent: Int): BrainPalette =
-            if (percent < WARM_THRESHOLD_PERCENT) warm() else cool()
-
         private const val WARM_THRESHOLD_PERCENT = 25
     }
 }

@@ -308,13 +308,11 @@ class BleEegRepository(
                                 this@BleEegRepository.gatt = gatt
                                 // Request high priority and larger MTU for the 600Hz stream
                                 gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                                    gatt.requestMtu(MTU_REQUEST)
-                                }
+                                gatt.requestMtu(MTU_REQUEST)
                                 gatt.discoverServices()
                             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                                 tryResume(false)
-                                failQuiet("Device disconnected.")
+                                failQuiet()
                             }
                         }
 
@@ -343,6 +341,7 @@ class BleEegRepository(
                             }
                             desc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                             setupStep = 1
+                            @Suppress("DEPRECATION")
                             gatt.writeDescriptor(desc)
                         }
 
@@ -361,6 +360,7 @@ class BleEegRepository(
                                 setupStep = 2
                                 cc.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
                                 cc.value = BleSpec.CMD_STREAM_START
+                                @Suppress("DEPRECATION")
                                 gatt.writeCharacteristic(cc)
                             } else {
                                 tryResume(true)
@@ -377,12 +377,12 @@ class BleEegRepository(
                             tryResume(status == BluetoothGatt.GATT_SUCCESS)
                         }
 
+                        @Deprecated("Deprecated in Java")
                         override fun onCharacteristicChanged(
                             gatt: BluetoothGatt,
                             characteristic: BluetoothGattCharacteristic,
                         ) {
                             if (characteristic.uuid != dataUuid) return
-                            @Suppress("DEPRECATION")
                             val payload = characteristic.value ?: return
                             val text = String(payload, StandardCharsets.UTF_8).trim()
                             if (text.isEmpty()) return
@@ -393,12 +393,7 @@ class BleEegRepository(
                         }
                     }
 
-                    val g = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        device.connectGatt(app, false, callback, BluetoothDevice.TRANSPORT_LE)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        device.connectGatt(app, false, callback)
-                    }
+                    val g = device.connectGatt(app, false, callback, BluetoothDevice.TRANSPORT_LE)
                     if (g == null) {
                         tryResume(false)
                         return@suspendCancellableCoroutine
@@ -535,7 +530,7 @@ class BleEegRepository(
         gatt = null
     }
 
-    private fun failQuiet(message: String) {
+    private fun failQuiet(message: String = "Device disconnected.") {
         _state.update { cur ->
             when (cur) {
                 is BrainState.Live,
