@@ -52,11 +52,11 @@ fun BrainMeter(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val batteryDisplay = state.battery?.value ?: -1
-        if (batteryDisplay >= 0) {
-            Stat(label = "BATTERY", percent = batteryDisplay)
-        } else {
-            StatUnavailable(label = "BATTERY", reason = "N/A")
-        }
+        // if (batteryDisplay >= 0) {
+        //     Stat(label = "BATTERY", percent = batteryDisplay)
+        // } else {
+        //     StatUnavailable(label = "BATTERY", reason = "N/A")
+        // }
         VerticalDivider(
             modifier = Modifier.height(48.dp),
             color = NeuroTextSecondary.copy(alpha = 0.25f),

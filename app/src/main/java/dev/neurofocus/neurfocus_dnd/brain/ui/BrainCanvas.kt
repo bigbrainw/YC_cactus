@@ -38,6 +38,8 @@ import dev.neurofocus.neurfocus_dnd.R
 import dev.neurofocus.neurfocus_dnd.brain.domain.BrainState
 import dev.neurofocus.neurfocus_dnd.brain.domain.EegBand
 import dev.neurofocus.neurfocus_dnd.ui.theme.NeurfocusdndTheme
+import kotlin.math.PI
+import kotlin.math.sin
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Palette (kept for BrainScreen compatibility)
@@ -112,8 +114,9 @@ private fun BrainState.kindOrdinal(): Int = when (this) {
  *   Idle       → faint grey glow, no pulse
  *   Searching  → slow pulsing pale-blue glow
  *   Connecting → faster pulsing teal glow
- *   Live       → per-band soft colored glows; sizes driven by band powers
- *                + overall envelope scales every glow
+ *   Live       → per-band colored glows at distinct lobe-ish positions; each band
+ *                jitters radius/alpha/center on its own harmonics (glowChaos) so
+ *                activity reads as spatially volatile, not one blob.
  *   Error      → flickering red glow
  *
  * Blink: whenever BrainState KIND changes (e.g. Searching→Connecting,
@@ -169,20 +172,33 @@ fun BrainCanvas(
         ),
         label = "fastPulse",
     )
+    // Slow 0→1 driver: each band combines this with different harmonics so glows do not move in lockstep.
+    val glowChaos by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue  = 1f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(11_400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "glowChaos",
+    )
 
     // ── Per-band animated powers ────────────────────────────────────────────
     val livePowers = (state as? BrainState.Live)?.bandPowers ?: emptyMap()
-    val animDelta by animateFloatAsState(livePowers[EegBand.Delta] ?: 0f, tween(350), label = "delta")
-    val animTheta by animateFloatAsState(livePowers[EegBand.Theta] ?: 0f, tween(350), label = "theta")
-    val animAlpha by animateFloatAsState(livePowers[EegBand.Alpha] ?: 0f, tween(350), label = "alpha")
-    val animBeta  by animateFloatAsState(livePowers[EegBand.LowBeta]  ?: 0f, tween(350), label = "beta")
-    val animGamma by animateFloatAsState(livePowers[EegBand.Gamma] ?: 0f, tween(350), label = "gamma")
+    val powerTween = tween<Float>(durationMillis = 120, easing = LinearEasing)
+    val animDelta by animateFloatAsState(livePowers[EegBand.Delta] ?: 0f, powerTween, label = "delta")
+    val animTheta by animateFloatAsState(livePowers[EegBand.Theta] ?: 0f, powerTween, label = "theta")
+    val animAlpha by animateFloatAsState(livePowers[EegBand.Alpha] ?: 0f, powerTween, label = "alpha")
+    val animBeta  by animateFloatAsState(livePowers[EegBand.LowBeta]  ?: 0f, powerTween, label = "beta")
+    val animHighBeta by animateFloatAsState(livePowers[EegBand.HighBeta] ?: 0f, powerTween, label = "highBeta")
+    val animGamma by animateFloatAsState(livePowers[EegBand.Gamma] ?: 0f, powerTween, label = "gamma")
 
     val animBandPowers = mapOf(
         EegBand.Delta to animDelta,
         EegBand.Theta to animTheta,
         EegBand.Alpha to animAlpha,
         EegBand.LowBeta  to animBeta,
+        EegBand.HighBeta to animHighBeta,
         EegBand.Gamma to animGamma,
     )
 
@@ -210,7 +226,7 @@ fun BrainCanvas(
                     drawStateGlow(ColorConnecting, alpha = 0.30f + fastPulse * 0.40f)
                 }
                 is BrainState.Live -> {
-                    drawLiveGlows(animBandPowers, envelope)
+                    drawLiveGlows(animBandPowers, envelope, glowChaos)
                 }
                 is BrainState.Error -> {
                     // Flicker: skip every ~3rd frame based on pulse speed
@@ -320,6 +336,7 @@ private fun DrawScope.drawStateGlow(color: Color, alpha: Float) {
 private fun DrawScope.drawLiveGlows(
     bandPowers: Map<EegBand, Float>,
     envelope: Float,
+    chaosT: Float,
 ) {
     data class GlowSpec(
         val band: EegBand,
@@ -327,57 +344,98 @@ private fun DrawScope.drawLiveGlows(
         val cy: Float, // fractional center y
         val outerR: Float, // outer radius as fraction of minDimension
         val innerR: Float, // inner radius as fraction of minDimension
+        /** Unique phase multipliers so each lobe “breathes” on a different curve. */
+        val wobbleA: Float,
+        val wobbleB: Float,
+        val wobbleC: Float,
     )
 
     val specs = listOf(
-        GlowSpec(EegBand.Delta, 0.50f, 0.50f, 0.75f, 0.40f), // center background
-        GlowSpec(EegBand.Theta, 0.50f, 0.62f, 0.55f, 0.28f), // temporal/lower
-        GlowSpec(EegBand.Alpha, 0.50f, 0.78f, 0.52f, 0.26f), // occipital/bottom
-        GlowSpec(EegBand.LowBeta, 0.50f, 0.22f, 0.52f, 0.26f), // frontal/top
-        GlowSpec(EegBand.Gamma, 0.50f, 0.38f, 0.50f, 0.24f), // parietal/upper-center
+        GlowSpec(EegBand.Delta, 0.50f, 0.50f, 0.78f, 0.38f, 1.0f, 2.3f, 0.7f),
+        GlowSpec(EegBand.Theta, 0.32f, 0.58f, 0.52f, 0.26f, 2.7f, 1.1f, 3.4f), // left temporal
+        GlowSpec(EegBand.Theta, 0.68f, 0.58f, 0.52f, 0.26f, 3.1f, 2.0f, 1.3f), // right temporal (second theta lobe)
+        GlowSpec(EegBand.Alpha, 0.50f, 0.80f, 0.50f, 0.24f, 1.4f, 3.9f, 2.2f), // occipital
+        GlowSpec(EegBand.LowBeta, 0.50f, 0.20f, 0.50f, 0.24f, 3.6f, 0.9f, 2.8f), // frontal
+        GlowSpec(EegBand.HighBeta, 0.40f, 0.35f, 0.46f, 0.22f, 4.2f, 1.7f, 0.5f),
+        GlowSpec(EegBand.HighBeta, 0.60f, 0.35f, 0.46f, 0.22f, 2.2f, 4.1f, 3.0f),
+        GlowSpec(EegBand.Gamma, 0.50f, 0.40f, 0.48f, 0.22f, 5.3f, 2.6f, 1.9f),
     )
 
+    val tau = (2f * PI).toFloat()
     specs.forEach { spec ->
         val power = bandPowers[spec.band] ?: 0f
-        if (power < 0.03f) return@forEach
+        if (power < 0.02f) return@forEach
 
-        val boost = 1f + envelope * 0.5f
-        val alpha = (power * boost).coerceIn(0f, 0.85f)
+        val v = bandVolatility(spec.band, chaosT, spec.wobbleA, spec.wobbleB, spec.wobbleC)
+        val v2 = bandVolatilitySecondary(spec.band, chaosT, spec.wobbleA, spec.wobbleB)
+
+        val boost = 1f + envelope * (0.55f + 0.25f * v2 * power)
+        val alphaBase = (power * boost).coerceIn(0f, 0.92f)
+        val alpha = (alphaBase * (0.72f + 0.28f * (0.5f + 0.5f * v))).coerceIn(0f, 0.95f)
         val color = BandGlowColors[spec.band] ?: Color.White
 
-        val cx = size.width  * spec.cx
-        val cy = size.height * spec.cy
+        val dx = size.width * (0.034f * v * power * spec.wobbleB)
+        val dy = size.height * (0.030f * v2 * power * spec.wobbleC)
+        val cx = size.width * spec.cx + dx
+        val cy = size.height * spec.cy + dy
+
+        val outerScale = (1f + 0.14f * v * power + 0.08f * envelope * sin(chaosT * tau * spec.wobbleA)).coerceIn(0.82f, 1.22f)
+        val innerScale = (1f + 0.18f * v2 * power + 0.06f * envelope * sin(chaosT * tau * spec.wobbleC + 1.3f)).coerceIn(0.78f, 1.28f)
+        val outerR = size.minDimension * spec.outerR * outerScale
+        val innerR = size.minDimension * spec.innerR * innerScale
 
         // Outer soft halo — large, very transparent
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    color.copy(alpha = alpha * 0.40f),
-                    color.copy(alpha = alpha * 0.10f),
+                    color.copy(alpha = alpha * 0.42f),
+                    color.copy(alpha = alpha * 0.11f),
                     Color.Transparent,
                 ),
                 center = Offset(cx, cy),
-                radius = size.minDimension * spec.outerR,
+                radius = outerR,
             ),
             center = Offset(cx, cy),
-            radius = size.minDimension * spec.outerR,
+            radius = outerR,
         )
 
         // Inner tight core — brighter, smaller
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    color.copy(alpha = alpha * 0.75f),
-                    color.copy(alpha = alpha * 0.25f),
+                    color.copy(alpha = alpha * 0.78f),
+                    color.copy(alpha = alpha * 0.22f),
                     Color.Transparent,
                 ),
                 center = Offset(cx, cy),
-                radius = size.minDimension * spec.innerR,
+                radius = innerR,
             ),
             center = Offset(cx, cy),
-            radius = size.minDimension * spec.innerR,
+            radius = innerR,
         )
     }
+}
+
+/** -1..1 — different bands / specs get different mixtures so glows decouple visually. */
+private fun bandVolatility(
+    band: EegBand,
+    chaosT: Float,
+    wa: Float,
+    wb: Float,
+    wc: Float,
+): Float {
+    val u = band.ordinal * 0.91f + wa * 0.17f + wb * 0.09f
+    val t = chaosT * (2f * PI).toFloat()
+    val a = sin(t * 1.9f * wa + u)
+    val b = sin(t * 3.7f * wb - u * 1.3f + 0.8f)
+    val c = sin(t * 6.4f * wc + u * u * 0.05f)
+    return (a * 0.48f + b * 0.32f + c * 0.20f).coerceIn(-1f, 1f)
+}
+
+private fun bandVolatilitySecondary(band: EegBand, chaosT: Float, wa: Float, wb: Float): Float {
+    val u = band.ordinal * 1.13f
+    val t = chaosT * (2f * PI).toFloat()
+    return (sin(t * 5.1f + wa + u * 0.7f) * 0.55f + sin(t * 8.3f - wb * 2.1f) * 0.45f).coerceIn(-1f, 1f)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
